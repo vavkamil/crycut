@@ -1,0 +1,19 @@
+{
+  "name": "stickerpix-print-cut-v1",
+  "reference_print_seconds": [
+    120.363,
+    106.147
+  ],
+  "reference_cut_seconds": [
+    110.52,
+    110.562
+  ],
+  "reference_cut_length_units": 123600.0,
+  "reference_contours": 28,
+  "assumed_contour_overhead_seconds": 0.5,
+  "cut_uncertainty_fraction": 0.3,
+  "notes": "Measured printing baseline with cutting estimated from path length and outline count. Per-outline overhead and variation are approximate; curves may take longer.",
+  "sources": [
+    "docs/evidence/timing.json"
+  ]
+}

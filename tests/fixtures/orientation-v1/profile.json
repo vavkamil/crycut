@@ -1,0 +1,33 @@
+{
+  "name": "wordmarks-capture-v1",
+  "canvas_mm": [
+    96,
+    170
+  ],
+  "raster_pixels": [
+    1200,
+    2100
+  ],
+  "cutter_X_from_y": {
+    "scale": 40.06691331923889,
+    "offset": 150.41951072183653,
+    "max_residual_cutter_units": 0.4491090305036778
+  },
+  "cutter_Y_from_x": {
+    "scale": -40.14123760037788,
+    "offset": 3946.5294048181377,
+    "max_residual_cutter_units": 0.3912376003784175
+  },
+  "pixel_x_from_x": {
+    "scale": 11.695795937647613,
+    "offset": 34.6017949929146,
+    "max_residual_pixels": 0.30420406235248265
+  },
+  "pixel_y_from_y": {
+    "scale": 11.674659518087138,
+    "offset": 57.134652123004514,
+    "max_residual_pixels": 0.3650582362733985
+  },
+  "plt_header": "IN VER0.1.0 KP39",
+  "plt_trailer": " U6476,0  @ "
+}

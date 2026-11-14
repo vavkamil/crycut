@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.cache/
+.ruff_cache/
+build/
+dist/
+*.egg-info/
+logs/
+/config/printer.json

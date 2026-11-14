@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="96mm" height="170mm" viewBox="0 0 96 170">
+  <title>Blank StickerPix design canvas — 96 × 170 mm</title>
+  <desc>Transparent design canvas. One viewBox unit equals one millimeter.
+  Add artwork in the artwork group and keep the surrounding page transparent.
+  stickerpix export --border 0 traces the artwork's outer silhouettes automatically.
+  Positive border values add an outward margin in millimeters, white by default.
+  Use --border-color to change its printed color. Leave
+  enough space between shapes and around the page for that margin.
+  Matching raster template: 1152 × 2040 pixels, at 12 pixels per millimeter.</desc>
+  <g id="artwork" />
+</svg>

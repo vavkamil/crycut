@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "source": "design.png",
+  "profile": "wordmarks-capture-v1",
+  "cuts": "auto",
+  "border_mm": 1.25,
+  "border_color": "#ffffff",
+  "background": "#ffffff",
+  "files": {
+    "sheet-print.jpg": "1b082f3d3cb4ed91ef5d6a6eb9cb588608772055605e0cf24ab187d65ebed454",
+    "sheet-cut.plt": "2c30c4c0fcdc4e31502937d5d33a53a293e2d77fd5b2fb8d93fcf62bd5a8cb7c"
+  },
+  "source_sha256": "8ed7e95a903970e68d06e94307636d3910c1645613ba09aa10798b6d4ca530f4"
+}

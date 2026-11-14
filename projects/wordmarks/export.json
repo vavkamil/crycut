@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "source": "design.svg",
+  "source_sha256": "bc3079879b24e48b986d20ea483b4d69d3c26438380bd2bd0913cad1c4a8e851",
+  "profile": "stickerpix-v2",
+  "border_mm": 0.0,
+  "border_color": "#ffffff",
+  "background": "#000000",
+  "files": {
+    "sheet-print.jpg": "b4b8c73f1b1f7867817b8dd688215f36c09b6dc1383615ea92da7f511839eaf8",
+    "sheet-cut.plt": "b4db03b8d53493e1d18c2d21aa04eebe32466a912b9656e5956d988d92a687a2"
+  }
+}
