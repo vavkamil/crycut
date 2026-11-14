@@ -1,0 +1,52 @@
+{
+  "units": "milliseconds",
+  "samples": [
+    {
+      "job_id": 26,
+      "source": "Reference print session; mobile client",
+      "outlines": 28,
+      "print_time": 120363,
+      "cut_time": 110520,
+      "upload_time": 5628
+    },
+    {
+      "job_id": 29,
+      "source": "crycut print of the reference sheet",
+      "outlines": 28,
+      "print_time": 106147,
+      "cut_time": 110562,
+      "upload_time": 4950
+    },
+    {
+      "job_id": 30,
+      "source": "crycut generated tech-icons sheet; orientation v1",
+      "outlines": 32,
+      "print_time": 105907,
+      "cut_time": 82802,
+      "upload_time": 5650
+    }
+  ],
+  "cut_progress": {
+    "job_29": {
+      "first": [
+        0,
+        7
+      ],
+      "last": [
+        28,
+        28
+      ]
+    },
+    "job_30": {
+      "first": [
+        0,
+        4
+      ],
+      "last": [
+        32,
+        32
+      ]
+    }
+  },
+  "note": "Selected numeric observations only; device and cartridge identifiers and full transcripts omitted."
+}
