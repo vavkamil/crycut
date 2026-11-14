@@ -7,6 +7,13 @@ Cricut StickerPix printer over Bluetooth. Create a design, generate its image
 and cut outlines, and follow the print progress from the terminal. Everything
 runs locally; no Cricut account or Design Space is required.
 
+<p align="center">
+  <img src="docs/screenshots/08_printing_cyan.png" alt="crycut printing a sticker sheet, showing the cyan printing stage and estimated time remaining">
+</p>
+<p align="center">
+  <a href="docs/screenshots/">View all screenshots</a>
+</p>
+
 ## Quick start
 
 Requires Linux, Python 3.11+, `uv`, BlueZ (`bluetoothctl` and `sdptool`), and
