@@ -1,0 +1,127 @@
+{
+  "profile": "stickerpix-v2",
+  "original_profile_name": "wordmarks-capture-v2",
+  "status": "Corrected cut orientation; physical alignment QA pending",
+  "pixel_fit_method": "Least squares of reference JPEG gray rectangle-edge pixel indices against source rectangle edges. Neutral pixels: RGB max-min <15, RGB mean >20. Column count >800, row count >300. Integer pixel indices used, subpixel edge placement remains approximate.",
+  "pixel_x_measurements": [
+    [
+      2,
+      58
+    ],
+    [
+      47,
+      584
+    ],
+    [
+      49,
+      608
+    ],
+    [
+      94,
+      1134
+    ]
+  ],
+  "pixel_y_measurements": [
+    [
+      12,
+      197
+    ],
+    [
+      24,
+      337
+    ],
+    [
+      26,
+      361
+    ],
+    [
+      38,
+      501
+    ],
+    [
+      50,
+      641
+    ],
+    [
+      62,
+      781
+    ],
+    [
+      72,
+      898
+    ],
+    [
+      74,
+      921
+    ],
+    [
+      84,
+      1038
+    ],
+    [
+      86,
+      1061
+    ],
+    [
+      96,
+      1178
+    ],
+    [
+      98,
+      1201
+    ],
+    [
+      108,
+      1318
+    ],
+    [
+      110,
+      1341
+    ],
+    [
+      120,
+      1458
+    ],
+    [
+      132,
+      1598
+    ],
+    [
+      144,
+      1738
+    ],
+    [
+      146,
+      1762
+    ],
+    [
+      158,
+      1902
+    ]
+  ],
+  "observed_cut_envelope_mm": [
+    2,
+    2,
+    94,
+    168
+  ],
+  "plt_notes": "Header, duplicate down points, and final travel match the reference PLT; KP39 and final-travel semantics remain unverified.",
+  "orientation_notes": "An asymmetric sheet demonstrated a 180-degree cut-layout error in the previous profile. Apply the previous cut transform to (96-x,170-y). The symmetric wordmark grid cannot distinguish orientations. JPEG transforms and final U6476,0 parking command are unchanged.",
+  "orientation_evidence": "docs/CALIBRATION.md#orientation",
+  "fit_residuals": {
+    "cutter_X_from_y": {
+      "max_residual_cutter_units": 0.4491090305036778
+    },
+    "cutter_Y_from_x": {
+      "max_residual_cutter_units": 0.3912376003784175
+    },
+    "pixel_x_from_x": {
+      "max_residual_pixels": 0.30420406235248265
+    },
+    "pixel_y_from_y": {
+      "max_residual_pixels": 0.3650582362733985
+    }
+  },
+  "source_sha256": "bc3079879b24e48b986d20ea483b4d69d3c26438380bd2bd0913cad1c4a8e851",
+  "regression_measurements": "tests/fixtures/wordmark-placement.json"
+}
