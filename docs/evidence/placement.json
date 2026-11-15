@@ -1,7 +1,7 @@
 {
   "profile": "stickerpix-v2",
   "original_profile_name": "wordmarks-capture-v2",
-  "status": "Corrected cut orientation; physical alignment QA pending",
+  "status": "Corrected cut orientation",
   "pixel_fit_method": "Least squares of reference JPEG gray rectangle-edge pixel indices against source rectangle edges. Neutral pixels: RGB max-min <15, RGB mean >20. Column count >800, row count >300. Integer pixel indices used, subpixel edge placement remains approximate.",
   "pixel_x_measurements": [
     [

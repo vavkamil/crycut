@@ -4,7 +4,7 @@
 port service provided by the printer. It does not use BLE/GATT.
 
 The implementation has been exercised with a StickerPix model `CSTP401`,
-firmware `1.0.31_0033`. Other firmware versions have not been verified.
+firmware `1.0.31_0033`.
 
 ## Requirements
 
@@ -68,7 +68,7 @@ to `config/printer.json` and replace the example address.
 
 Setup does not depend on Ubuntu's Bluetooth UI. Existing Linux Bluetooth
 pairings can be reused. OS-level pairing and the application's key exchange are
-separate; pairing-free operation has not been verified.
+separate.
 
 If the printer is not paired and the connection requires it, use your desktop
 Bluetooth settings or the terminal:

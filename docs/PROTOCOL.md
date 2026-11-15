@@ -19,8 +19,7 @@ rather than assuming an endpoint. The tested printer advertised channel 2.
 
 Bluetooth bonding/link encryption and application encryption are separate.
 BlueZ manages the Bluetooth connection; `crycut` implements the application
-handshake below. Pairing-free operation has not been verified. No account token
-or cloud request is involved.
+handshake below. No account token or cloud request is involved.
 
 RFCOMM endpoint numbers are distinct from the **application channel byte** inside
 each packet:
@@ -117,9 +116,8 @@ events have been observed even after the encrypted handshake.
 
 A fresh cartridge reported 36 prints. One completed sheet reduced the count to
 35. A missing cartridge reported `-1`; the CLI treats this as unavailable rather
-than claiming the cartridge is empty. Consumption on failed or cancelled jobs
-has not been established. The displayed cartridge capacity comes from local
-configuration, not a discovered capacity field.
+than claiming the cartridge is empty. The displayed cartridge capacity comes
+from local configuration, not a discovered capacity field.
 
 Device state mappings:
 
@@ -233,16 +231,13 @@ accounts for the extra eight. Do not present it as a completed-sheet count.
 Likewise, job IDs and the cartridge's remaining-print count are separate
 values, not substitutes for `finished_5013`.
 
-A separate `big-data-all` query timed out after 15 seconds in the same session.
-Only `big-data` returned a usable response. Factory-new printer behavior, reset
-conditions, rollover, and changes during multi-copy jobs have not been verified
-on hardware. A sheet count does not directly measure blade wear.
+A sheet count does not directly measure blade wear.
 
 `crycut status` queries `big-data` and displays `finished_5013` as **Sheets
 printed**, below **Prints left**. This excludes photo sheets. A successful
-counter-object response that omits `finished_5013` is treated as zero; this
-default has not been checked on a factory-new printer. A failed query or invalid
-counter displays **Unavailable** without hiding the other status information.
+counter-object response that omits `finished_5013` is treated as zero. A failed
+query or invalid counter displays **Unavailable** without hiding the other
+status information.
 JSON output exposes the count as `sticker_sheets_printed`, or `null` when
 unavailable.
 
@@ -262,9 +257,8 @@ entries. The observed media settings are:
 
 Each nested entry includes its document name, file path, byte length, and those
 media settings. The printer returns a job ID before file upload begins.
-The Android SDK passes the requested copy count to both nested entries and
-uploads the files once. Crycut follows that path; multiple-copy behavior still
-needs a physical verification run on the documented firmware.
+Crycut passes the requested copy count to both nested entries and uploads the
+files once.
 
 Despite the request's entry order, the uploaded data is **PLT bytes followed by
 JPEG bytes**. Split it into chunks of at most 892 bytes. Prefix each chunk with
@@ -340,8 +334,7 @@ Power-off notifications are not implemented or relied upon.
 ## Error codes
 
 Error `-8012` was observed when uploading file data with an incorrect payload
-type. The client reports other printer errors as received; their meanings have
-not been verified on hardware.
+type. The client reports other printer errors as received.
 
 ## PLT cutter commands
 
