@@ -1,5 +1,6 @@
 """Submit one print-and-cut job and monitor printer-reported progress."""
 
+import re
 import time
 
 from .models import Emit, JsonObject
@@ -19,7 +20,9 @@ JOB_STATES = {
 }
 STAGES = {
     2000: "Idle/starting",
+    3015: "Preparing",
     3016: "Decoding",
+    3017: "Feeding paper",
     3018: "Printing yellow",
     3019: "Printing magenta",
     3020: "Printing cyan",
@@ -62,6 +65,7 @@ def monitor(
     interval: float = 2,
     max_wait: float = 900,
     estimate_seconds: float | None = None,
+    copies: int | None = None,
 ) -> JsonObject:
     """Poll the job and report progress until a confirmed terminal state."""
     started = time.monotonic()
@@ -70,6 +74,8 @@ def monitor(
     paused_seconds = 0.0
     previous_elapsed = 0.0
     was_paused = False
+    copy_number = 0
+    copy_started = 0.0
 
     def terminal_notification() -> JsonObject | None:
         completed = finish_notification(client, job_id)
@@ -119,14 +125,27 @@ def monitor(
                 raise ValueError("Unexpected printer-state response")
             substate = int(status[1])
             elapsed = time.monotonic() - started
-            if was_paused:
+            reported_copy = info.get("printing-page-number")
+            if type(reported_copy) is int and reported_copy > copy_number:
+                copy_number = reported_copy
+                copy_started = elapsed
+                paused_seconds = 0.0
+            elif was_paused:
                 paused_seconds += elapsed - previous_elapsed
+            reported_copies = info.get("copies")
+            if copies is None and type(reported_copies) is int and reported_copies > 0:
+                copies = reported_copies
             previous_elapsed = elapsed
-            was_paused = state in (4, 5, 6)
+            paper_near_blade = "8401" in re.findall(r"\d+", str(status[2]))
+            was_paused = state in (1, 4, 5, 6) or paper_near_blade
             estimate = (
                 None
-                if was_paused or estimate_seconds is None
-                else max(0, estimate_seconds - (elapsed - paused_seconds))
+                if was_paused
+                or estimate_seconds is None
+                or (copy_number == 0 and reported_copy == 0)
+                else max(
+                    0, estimate_seconds - (elapsed - copy_started - paused_seconds)
+                )
             )
             emit(
                 "progress",
@@ -135,6 +154,9 @@ def monitor(
                 stage=STAGES.get(substate, f"Stage {substate}"),
                 substate=substate,
                 alerts_raw=status[2],
+                paper_near_blade=paper_near_blade,
+                copy_number=copy_number,
+                copies=copies,
                 cutting_progress=info.get("cutting-progress"),
                 cut_contours=info.get("cut-contours"),
                 elapsed_seconds=round(elapsed, 1),
@@ -153,24 +175,26 @@ def submit(
     sheet: PrintSheet,
     emit: Emit,
     *,
+    copies: int = 1,
     interval: float = 2,
-    max_wait: float = 900,
+    max_wait: float | None = None,
 ) -> JsonObject:
-    """Submit one sheet exactly once, upload its files, and monitor the job."""
+    """Submit one combo job, upload its files once, and monitor all copies."""
     if client.key is None:
         raise ValueError("Handshake required")
     estimate_seconds = sheet.estimate_seconds
+    parameters = sheet.parameters(copies)
     total = sheet.fragment_count
     state = client.request("get-prop", ["printer-state"]).get("result")
     if state != ["20"] and state != [20]:
         raise ValueError(f"Printer is not idle: {state}")
-    emit("submitting", copies=1)
-    response = client.request("combo-job", sheet.parameters())
+    emit("submitting", copies=copies)
+    response = client.request("combo-job", parameters)
     result = response.get("result")
     job_id = result.get("job-id") if isinstance(result, dict) else None
     if type(job_id) is not int or not 0 < job_id <= 0xFFFFFFFF:
         raise ValueError(f"No valid job ID in submission response: {response}")
-    emit("accepted", job_id=job_id)
+    emit("accepted", job_id=job_id, copies=copies)
     for index, packet in enumerate(sheet.upload_frames(client.key, job_id), 1):
         client.send(packet)
         if index == 1 or index % 25 == 0 or index == total:
@@ -184,6 +208,7 @@ def submit(
         job_id,
         emit,
         interval=interval,
-        max_wait=max_wait,
+        max_wait=900 * copies if max_wait is None else max_wait,
         estimate_seconds=estimate_seconds,
+        copies=copies,
     )
