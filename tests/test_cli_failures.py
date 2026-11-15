@@ -9,6 +9,56 @@ from crycut import cli
 from crycut.commands import print as printer
 
 
+@pytest.mark.usefixtures("manual_live_refresh")
+@pytest.mark.parametrize("interactive", [False, True])
+@pytest.mark.parametrize("failure", ["lookup", "connect", "handshake"])
+def test_connection_failure_leaves_a_static_unavailable_result(
+    failure, interactive, tmp_path, monkeypatch, printer_config
+):
+    import io
+    from unittest.mock import MagicMock
+
+    from crycut.progress import ProgressDisplay
+    from crycut.ui import console
+    from terminal_helpers import visible
+
+    output, errors = io.StringIO(), io.StringIO()
+    monkeypatch.setattr(output, "isatty", lambda: interactive)
+    monkeypatch.setattr(printer.sys, "stdout", output)
+    monkeypatch.setattr(printer.sys, "stderr", errors)
+    display = ProgressDisplay(output)
+    monkeypatch.setattr(printer, "ProgressDisplay", lambda _: display)
+    monkeypatch.setattr(printer, "PRINTER_CONFIG", printer_config)
+    lookup = Mock(return_value=2)
+    connection = MagicMock()
+    client = Mock(events=[])
+    if failure == "lookup":
+        lookup.side_effect = ValueError("sdptool is required for service lookup")
+    elif failure == "connect":
+        connection.__enter__.return_value.connect.side_effect = OSError("unreachable")
+    else:
+        client.handshake.side_effect = ValueError("Handshake rejected")
+    monkeypatch.setattr(printer, "resolve_rfcomm_channel", lookup)
+    monkeypatch.setattr(printer.socket, "socket", Mock(return_value=connection))
+    monkeypatch.setattr(printer, "Client", Mock(return_value=client))
+    submit = Mock(side_effect=AssertionError("must not submit"))
+    monkeypatch.setattr(printer, "submit", submit)
+    assert (
+        printer.main(["wordmarks", "--send", "--log", str(tmp_path / "run.jsonl")]) == 1
+    )
+    assert "Status:           Unavailable" in visible(output.getvalue())
+    assert "[x]" in errors.getvalue()
+    assert not display.active
+    assert not display._live.is_started
+    if interactive:
+        final = io.StringIO()
+        console(final).print(display._live.renderable)
+        assert "Status:           Unavailable" in visible(final.getvalue())
+        assert "Connecting" not in final.getvalue()
+        assert "\x1b[?25h" in output.getvalue()
+    submit.assert_not_called()
+
+
 @pytest.mark.parametrize("channel", [None, 7])
 def test_interrupted_print_recovery_reconnects_without_resubmitting(
     channel, tmp_path, monkeypatch, capsys, printer_config

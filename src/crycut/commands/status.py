@@ -183,7 +183,7 @@ def main(argv: list[str] | None = None) -> int:
             out.print(fields(rows))
             out.print()
             notice(
-                "Check that the printer is on and the notebook's Bluetooth is enabled.",
+                "Check that the printer is on and Bluetooth is enabled.",
                 "error",
                 out=out,
             )

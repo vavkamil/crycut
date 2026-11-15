@@ -39,6 +39,8 @@ def message(event: str, details: JsonObject, *, cut_total: int | None = None) ->
         return f"{'Status:':<{LABEL_WIDTH + 2}}Connecting…"
     if event == "connected":
         return f"{'Status:':<{LABEL_WIDTH + 2}}Connected"
+    if event == "connection_failed":
+        return f"{'Status:':<{LABEL_WIDTH + 2}}Unavailable"
     if event == "upload":
         return progress_bar("Upload", details["sent"] / details["total"])
     if event == "progress":
@@ -223,7 +225,9 @@ class ProgressDisplay:
                 else f"{self._copies} queued"
             )
             rows.append(("Copies", copy))
-        if event == "upload":
+        if event == "connection_failed":
+            rows.append(("Status", Text("Unavailable", style="error")))
+        elif event == "upload":
             rows.append(("Upload", self._bar(details["sent"] / details["total"])))
         elif event == "progress":
             stage = details["stage"]
@@ -333,7 +337,7 @@ class ProgressDisplay:
             self.active = True
         else:
             self._live.update(renderable, refresh=True)
-        if event == "job":
+        if event in ("job", "connection_failed"):
             self._live.stop()
             self.active = False
 

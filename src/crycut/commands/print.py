@@ -170,6 +170,7 @@ def main(argv: list[str] | None = None) -> int:
     log: EventLog | None = None
     job_id = args.monitor
     submitting = False
+    connecting = False
     display = ProgressDisplay(sys.stdout)
     out = display.console
     try:
@@ -237,6 +238,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             display.show(event, details)
 
+        connecting = True
         emit("connecting", address=address)
         channel = resolve_rfcomm_channel(address, args.channel, args.timeout)
         with socket.socket(
@@ -247,6 +249,7 @@ def main(argv: list[str] | None = None) -> int:
             client = Client(connection, args.timeout)
             client.handshake()
             emit("connected", address=address, rfcomm_channel=channel)
+            connecting = False
             if args.monitor:
                 result = monitor(
                     client,
@@ -267,17 +270,22 @@ def main(argv: list[str] | None = None) -> int:
                 )
         return 0 if result.get("job-state") == 9 else 1
     except (OSError, ValueError, KeyError, TypeError, KeyboardInterrupt) as error:
+        connection_failed = connecting and not isinstance(error, KeyboardInterrupt)
+        if connection_failed:
+            display.show("connection_failed", {})
         display.finish()
         detail = (
             "Monitoring interrupted"
             if isinstance(error, KeyboardInterrupt)
             else str(error)
         )
-        if log and client is None and isinstance(error, OSError):
+        if connection_failed and isinstance(error, OSError):
+            error_out = console(sys.stderr)
+            error_out.print()
             notice(
-                "Cannot connect to the printer. Check power and the notebook's Bluetooth.",
+                "Cannot connect to the printer. Check power and Bluetooth.",
                 "error",
-                out=console(sys.stderr),
+                out=error_out,
             )
         else:
             notice(
