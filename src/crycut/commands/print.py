@@ -22,7 +22,7 @@ from ..configuration import load_printer
 from ..jobs import monitor, submit
 from ..paths import PRINTER_CONFIG, ROOT
 from ..progress import ProgressDisplay, duration
-from ..projects import resolve
+from ..projects import command_argument, resolve
 from ..sheets import PrintSheet
 from ..transport import Client, resolve_rfcomm_channel
 from ..ui import command_hints, console, fields, heading, notice
@@ -144,16 +144,7 @@ def _show_preview(
         )
     out.print(fields(paths))
     out.print()
-    resolved_directory = directory.resolve()
-    if resolved_directory.parent == (
-        ROOT / "projects"
-    ).resolve() and not resolved_directory.name.startswith("-"):
-        project = resolved_directory.name
-    else:
-        project = os.path.relpath(resolved_directory)
-        if "/" not in project or project.startswith("-"):
-            project = f"./{project}"
-    command = f"uv run crycut print {shlex.quote(project)} --send"
+    command = f"uv run crycut print {shlex.quote(command_argument(directory))} --send"
     if channel is not None:
         command += f" --channel {channel}"
     hints = [("Print", command if copies == 1 else f"{command} --copies {copies}")]

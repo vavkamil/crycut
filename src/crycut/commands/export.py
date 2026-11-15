@@ -6,6 +6,7 @@ Uses the StickerPix placement profile to generate the print image and cut paths.
 """
 
 import json
+import os
 import shlex
 import subprocess
 import xml.etree.ElementTree as ET
@@ -14,7 +15,7 @@ from pathlib import Path
 from ..arguments import ArgumentParser
 from ..exporter import export
 from ..paths import PLACEMENT_PROFILE
-from ..projects import resolve, source_path
+from ..projects import command_argument, resolve, source_path
 from ..ui import busy, command_hints, console, fields, heading, notice
 
 
@@ -94,13 +95,13 @@ def main(argv: list[str] | None = None) -> int:
     out.print(
         fields(
             [
-                ("Project", str(output)),
-                ("Preview", str(output / "preview.png")),
+                ("Project", os.path.relpath(output.resolve())),
+                ("Preview", os.path.relpath((output / "preview.png").resolve())),
             ]
         )
     )
     command_hints(
-        [("Inspect", f"uv run crycut print {shlex.quote(str(output.resolve()))}")],
+        [("Inspect", f"uv run crycut print {shlex.quote(command_argument(output))}")],
         out=out,
     )
     out.print()

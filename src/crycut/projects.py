@@ -1,9 +1,21 @@
 """One editable source and its latest export in each project folder."""
 
+import os
 import re
 from pathlib import Path
 
 from .paths import ROOT
+
+
+def command_argument(directory: Path) -> str:
+    """Select a project by name when possible, otherwise by an explicit path."""
+    directory = directory.resolve()
+    if directory.parent == (
+        ROOT / "projects"
+    ).resolve() and not directory.name.startswith("-"):
+        return directory.name
+    path = os.path.relpath(directory)
+    return f"./{path}" if "/" not in path or path.startswith("-") else path
 
 
 def resolve(value: str | Path) -> Path:

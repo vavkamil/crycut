@@ -9,15 +9,17 @@ from unittest.mock import Mock
 import pytest
 
 from crycut import cli, projects
+from crycut.commands import export as export_command
 from crycut.commands import print as printer
 
 
+@pytest.mark.parametrize("command_name", ["print", "export"])
 @pytest.mark.parametrize(
     "selection",
     ["current", "parent", "symlink", "external", "leading-dash", "named-leading-dash"],
 )
 def test_print_hints_select_the_inspected_directory(
-    selection, tmp_path, monkeypatch, capsys
+    selection, command_name, tmp_path, monkeypatch, capsys
 ):
     source = projects.ROOT / "projects" / "wordmarks"
     project = tmp_path / {
@@ -50,16 +52,18 @@ def test_print_hints_select_the_inspected_directory(
         monkeypatch.chdir(tmp_path)
         argument = "./alias"
 
-    assert cli.main(["print", argument]) == 0
+    monkeypatch.setattr(export_command, "export", Mock(return_value=28))
+    assert cli.main([command_name, argument]) == 0
     hints = [
         line.split(":", 1)[1].strip()
         for line in capsys.readouterr().out.splitlines()
-        if line.startswith(("Print:", "Print 3 copies:"))
+        if line.lstrip().startswith(("Print:", "Print 3 copies:", "Inspect:"))
     ]
-    assert len(hints) == 2
-    for command, copies in zip(hints, (1, 3), strict=True):
+    expected_copies = (1, 3) if command_name == "print" else (1,)
+    assert len(hints) == len(expected_copies)
+    for command, copies in zip(hints, expected_copies, strict=True):
         args = printer._parse_args(shlex.split(command)[4:])
-        assert args.send and args.copies == copies
+        assert args.send == (command_name == "print") and args.copies == copies
         assert cli.main(["print", args.job, "--json"]) == 0
         assert json.loads(capsys.readouterr().out)["project"] == str(project)
     connect.assert_not_called()
@@ -85,14 +89,19 @@ def test_create_export_print_with_a_working_directory_name_collision(
     assert cli.main(["export", "config"]) == 0
     output = capsys.readouterr().out
     project = tmp_path / "projects/config"
-    inspect = next(line for line in output.splitlines() if line.startswith("Inspect:"))
+    inspect = next(
+        line for line in output.splitlines() if line.lstrip().startswith("Inspect:")
+    )
     assert shlex.split(inspect.split(":", 1)[1]) == [
         "uv",
         "run",
         "crycut",
         "print",
-        str(project),
+        "config",
     ]
+    assert str(tmp_path) not in output
+    assert "projects/config/preview.png" in output
+    assert "projects/config" in output
     assert (project / "sheet-print.jpg").is_file()
     assert list(local.iterdir()) == [marker]
     assert marker.read_text() == "unrelated configuration"
