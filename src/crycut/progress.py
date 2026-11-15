@@ -16,6 +16,14 @@ def duration(seconds: float) -> str:
     return f"{minutes}:{seconds:02d}"
 
 
+def progress_bar(label: str, fraction: float) -> str:
+    """Render a bounded fraction using the same bar for upload and printing."""
+    fraction = min(1, max(0, fraction))
+    filled = int(fraction * 16)
+    bar = "=" * filled + "-" * (16 - filled)
+    return f"{label + ':':<15}[{bar}] {int(fraction * 100):3d}%"
+
+
 def message(event: str, details: JsonObject, *, cut_total: int | None = None) -> str:
     """Format one printer event for terminal output."""
     if event == "connecting":
@@ -23,10 +31,7 @@ def message(event: str, details: JsonObject, *, cut_total: int | None = None) ->
     if event == "connected":
         return f"{'Status:':<15}Connected"
     if event == "upload":
-        fraction = min(1, max(0, details["sent"] / details["total"]))
-        filled = int(fraction * 16)
-        bar = "=" * filled + "-" * (16 - filled)
-        return f"{'Upload:':<15}[{bar}] {int(fraction * 100):3d}%"
+        return progress_bar("Upload", details["sent"] / details["total"])
     if event == "progress":
         if details.get("paper_near_blade"):
             return f"{'Status:':<15}Paper near blade"
@@ -86,6 +91,8 @@ class ProgressDisplay:
         self._copies: int | None = None
         self._copy_number = 0
         self._active_lines = 0
+        self._sheet_estimate: float | None = None
+        self._overall_fraction: float | None = None
 
     def show(self, event: str, details: JsonObject) -> None:
         """Show an event and start local countdown updates when appropriate."""
@@ -97,6 +104,13 @@ class ProgressDisplay:
                 self._copies, self._copy_number = copies, copy_number
                 if not self.interactive and copies is not None:
                     self._write("copies", self._copy_text())
+            estimate = details.get("estimated_sheet_seconds")
+            if event == "uploaded":
+                estimate = details.get("estimated_execution_seconds")
+            if estimate is not None and estimate > 0 and self._copies:
+                self._sheet_estimate = estimate
+                if self._overall_fraction is None:
+                    self._overall_fraction = 0.0
             if self.interactive and event == "progress":
                 self._progress = dict(details)
                 remaining = details["estimated_remaining_seconds"]
@@ -113,7 +127,7 @@ class ProgressDisplay:
             else:
                 self._progress = None
                 self._deadline = None
-                self._write(event, message(event, details, cut_total=self.cut_total))
+                self._write(event, self._message(event, details))
 
     def _run_clock(self) -> None:
         while not self._stop.wait(1):
@@ -132,7 +146,28 @@ class ProgressDisplay:
             details["estimated_remaining_seconds"] = max(
                 0, math.ceil(self._deadline - time.monotonic())
             )
-        self._write("progress", message("progress", details, cut_total=self.cut_total))
+        self._write("progress", self._message("progress", details))
+
+    def _message(self, event: str, details: JsonObject) -> str:
+        text = message(event, details, cut_total=self.cut_total)
+        if self._overall_fraction is None:
+            return text
+        if event == "progress":
+            remaining = details["estimated_remaining_seconds"]
+            if remaining is not None and self._copy_number > 0:
+                assert self._sheet_estimate is not None and self._copies is not None
+                sheet_fraction = min(1, max(0, 1 - remaining / self._sheet_estimate))
+                fraction = (self._copy_number - 1 + sheet_fraction) / self._copies
+                # Estimates may overrun or be corrected by a poll. Never go
+                # backward or claim completion before the printer confirms it.
+                self._overall_fraction = max(
+                    self._overall_fraction, min(0.99, fraction)
+                )
+        elif event == "job" and details.get("job-state") == 9:
+            self._overall_fraction = 1.0
+        if event in ("uploaded", "progress", "job"):
+            text += "\n" + progress_bar("Progress", self._overall_fraction)
+        return text
 
     def _write(self, event: str, text: str) -> None:
         if self.interactive:
@@ -146,7 +181,7 @@ class ProgressDisplay:
             ):
                 # Keep the line from wrapping, so the next update can replace it.
                 width = max(1, shutil.get_terminal_size().columns - 1)
-                lines = [text]
+                lines = text.splitlines()
                 if self._copies is not None:
                     lines.insert(0, self._copy_text())
                 lines = [

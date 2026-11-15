@@ -160,6 +160,7 @@ def monitor(
                 cutting_progress=info.get("cutting-progress"),
                 cut_contours=info.get("cut-contours"),
                 elapsed_seconds=round(elapsed, 1),
+                estimated_sheet_seconds=estimate_seconds,
                 estimated_remaining_seconds=None
                 if estimate is None
                 else round(estimate),
