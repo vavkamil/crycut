@@ -21,6 +21,38 @@ class Terminal(io.StringIO):
         return True
 
 
+@pytest.mark.parametrize("terminal", [False, True])
+@pytest.mark.parametrize("no_color", [False, True])
+def test_command_help_uses_shared_theme(terminal, no_color, monkeypatch):
+    from crycut.arguments import ArgumentParser
+
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    monkeypatch.setenv("COLUMNS", "80")
+    if no_color:
+        monkeypatch.setenv("NO_COLOR", "1")
+    else:
+        monkeypatch.delenv("NO_COLOR", raising=False)
+    parser = ArgumentParser(prog="crycut status", description="Read printer status.")
+    parser.add_argument("--timeout", help="Timeout in seconds")
+    stream = Terminal() if terminal else io.StringIO()
+    parser.print_help(file=stream)
+    output = stream.getvalue()
+    assert "\x1b" not in parser.format_help()
+    assert "--timeout TIMEOUT" in visible(output)
+    assert "Timeout in seconds" in visible(output)
+    if terminal and not no_color:
+        assert "\x1b[36mcrycut status\x1b[0m" in output
+        assert "\x1b[33m--timeout\x1b[0m" in output
+        assert "\x1b[1;35mTIMEOUT\x1b[0m" in output
+        assert re.search(r"\x1b\[32m\s*Timeout in seconds", output)
+    elif terminal:
+        for sequence in re.findall(r"\x1b\[([0-9;]*)m", output):
+            assert set(sequence.split(";")) <= {"", "0", "1", "2"}
+    else:
+        assert "\x1b" not in output
+
+
 @pytest.mark.parametrize("label", ["Project", "Preview", "Log"])
 def test_path_links_keep_relative_labels_and_encode_local_targets(
     label, tmp_path, monkeypatch
