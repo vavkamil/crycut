@@ -6,14 +6,14 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from crycut.commands import status as command
-from crycut.status import read_status
+from crycut.status import describe_alerts, read_status
 
 
-def client_with_counters(reply):
+def client_with_counters(reply, alerts=":0:0", ribbon_count=31):
     return Mock(
         get_properties=Mock(
             side_effect=[
-                {"result": ["20", "2000", ":0:0"]},
+                {"result": ["20", "2000", alerts]},
                 {
                     "result": [
                         "1.0.31_0033",
@@ -22,7 +22,7 @@ def client_with_counters(reply):
                         "test",
                     ]
                 },
-                {"result": [{"ribbon-info": [0, 0, 31, 0, 0, 0]}]},
+                {"result": [{"ribbon-info": [0, 0, ribbon_count, 0, 0, 0]}]},
                 reply,
             ]
         )
@@ -56,13 +56,15 @@ def test_status_displays_completed_sticker_sheets(
         status = json.loads(output)
         assert status["sticker_sheets_printed"] == 20
         assert status["ribbon_count"] == 31
+        assert status["alerts"] == []
+        assert status["alerts_raw"] == ":0:0"
     else:
         lines = output.splitlines()
         index = next(
             i for i, line in enumerate(lines) if line.startswith("Prints left:")
         )
         assert lines[index + 1] == "Sheets printed:   20"
-        assert lines[index + 2].startswith("Alerts (raw):")
+        assert lines[index + 2] == "Alerts:           None"
     client.get_properties.assert_any_call(["big-data"], 4)
 
 
@@ -96,3 +98,67 @@ def test_unavailable_counter_preserves_other_status(reply):
     assert status["ribbon_count"] == 31
     assert "Sheets printed:   Unavailable" in command.display(status)
     assert json.loads(json.dumps(status))["sticker_sheets_printed"] is None
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (":0:0", []),
+        (":8401:0", ["Paper near blade"]),
+        (":0:7203", ["Cartridge missing"]),
+        (":0:7101", ["Paper empty"]),
+        (":0:7001", ["Cover open"]),
+        (
+            ":8401,8123,8124:7203",
+            [
+                "Paper near blade",
+                "Unknown warning (8123)",
+                "Unknown warning (8124)",
+                "Cartridge missing",
+            ],
+        ),
+        (":0:9999", ["Unknown error (9999)"]),
+        (":0:7305", ["Unknown error (7305)"]),
+        (":8401:8401", ["Paper near blade"]),
+    ],
+)
+def test_alert_descriptions_preserve_unknown_codes(raw, expected):
+    assert describe_alerts(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [None, "", "0", ":0:", ":0:0:7104", ":8401,,8123:0", ":oops:0", ":0:-7203", 0],
+)
+def test_unexpected_alert_format_never_means_no_alerts(raw):
+    assert describe_alerts(raw) == [f"Unknown alert format ({raw!r})"]
+
+
+def test_missing_cartridge_keeps_usage_count_and_explains_unavailable_prints():
+    status = read_status(
+        client_with_counters(
+            {"result": [{"finished_5013": 20}]}, alerts=":0:7203", ribbon_count=-1
+        ),
+        "address",
+        "printer",
+    )
+    output = command.display(status)
+    assert "Prints left:      Unavailable" in output
+    assert "Sheets printed:   20" in output
+    assert "Alerts:           Cartridge missing" in output
+    assert "Alerts (raw)" not in output
+    assert status["alerts_raw"] == ":0:7203"
+    assert status["ribbon_count_raw"] == -1
+    assert status["alerts"] == ["Cartridge missing"]
+
+
+def test_multiple_alerts_display_together():
+    status = read_status(
+        client_with_counters({"result": [{}]}, alerts=":8401,8123:7104"),
+        "address",
+        "printer",
+    )
+    assert (
+        "Alerts:           Paper near blade; Unknown warning (8123); Paper jam"
+        in command.display(status)
+    )
