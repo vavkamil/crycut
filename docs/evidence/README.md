@@ -34,4 +34,4 @@ root. All inputs needed by the offline tests are included in the repository.
 
 When adding evidence, retain original reference bytes, identify the device and
 firmware where relevant, describe any normalization, and add a focused test.
-Keep measurements separate from inferred meanings and unverified assumptions.
+Keep measurements separate from inferred meanings.

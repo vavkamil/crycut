@@ -1,6 +1,6 @@
 # StickerPix printer protocol
 
-This reference describes the implementation verified with a StickerPix `CSTP401`,
+This reference describes crycut's implementation for the StickerPix `CSTP401`,
 firmware `1.0.31_0033`. It is an implementation reference rather than an
 official firmware specification. For everyday use, start with
 [Bluetooth setup](BLUETOOTH.md) and [sheet preparation](SHEET-WORKFLOW.md).
@@ -15,7 +15,7 @@ are retained as [regression fixtures](../tests/fixtures/README.md).
 
 The printer exposes a classic Bluetooth Serial Port service:
 `00001101-0000-1000-8000-00805f9b34fb`. The client queries SDP for its RFCOMM channel
-rather than assuming an endpoint. The tested printer advertised channel 2.
+rather than assuming an endpoint.
 
 Bluetooth bonding/link encryption and application encryption are separate.
 BlueZ manages the Bluetooth connection; `crycut` implements the application

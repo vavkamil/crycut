@@ -142,15 +142,14 @@ uv run ty check .
 
 Tests run offline using temporary projects, simulated printer connections, and
 protocol fixtures. They include byte-for-byte upload comparisons and
-export geometry checks. Physical print and cut alignment is checked separately
-on the printer.
+export geometry checks.
 
 For focused changes, run the relevant test file, for example
 `uv run pytest tests/test_monitor_failures.py`.
 
 ## Prerequisites
 
-- Tested on firmware `1.0.31_0033` with Bluetooth firmware `BR8051A01B_fW_260519_r7997`.
+- Reference printer: firmware `1.0.31_0033`, Bluetooth firmware `BR8051A01B_fW_260519_r7997`.
 - Linux with a Bluetooth adapter supporting classic Bluetooth.
 - System Python 3.11+ with Bluetooth socket support, and `uv`.
 - BlueZ, including `bluetoothctl` for setup and `sdptool` for connections.

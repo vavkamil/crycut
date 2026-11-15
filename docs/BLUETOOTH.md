@@ -3,8 +3,7 @@
 `crycut` talks to the StickerPix using **classic Bluetooth RFCOMM**, the serial
 port service provided by the printer. It does not use BLE/GATT.
 
-The implementation has been exercised with a StickerPix model `CSTP401`,
-firmware `1.0.31_0033`.
+Reference printer: StickerPix model `CSTP401`, firmware `1.0.31_0033`.
 
 ## Requirements
 
@@ -95,8 +94,8 @@ account or phone application is not required.
 
 ## Channels and connection ownership
 
-The default is to query the saved address for its Serial Port service. The tested
-printer advertised RFCOMM channel 2. Do not assume that every device or firmware
+The default is to query the saved address for its Serial Port service.
+Do not assume that every device or firmware
 uses the same endpoint. `--channel` exists as an explicit troubleshooting override
 on `status`, `print`, and `monitor`. If a print needs this override, use the
 same `--channel` when reconnecting with `monitor`.
