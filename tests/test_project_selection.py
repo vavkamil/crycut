@@ -12,14 +12,19 @@ from crycut import cli, projects
 from crycut.commands import print as printer
 
 
-@pytest.mark.parametrize("selection", ["current", "parent", "symlink", "external"])
+@pytest.mark.parametrize(
+    "selection",
+    ["current", "parent", "symlink", "external", "leading-dash", "named-leading-dash"],
+)
 def test_print_hints_select_the_inspected_directory(
     selection, tmp_path, monkeypatch, capsys
 ):
     source = projects.ROOT / "projects" / "wordmarks"
-    project = tmp_path / (
-        "external sheet" if selection == "external" else "projects/actual-sheet"
-    )
+    project = tmp_path / {
+        "external": "external sheet",
+        "leading-dash": "-sheets/design",
+        "named-leading-dash": "projects/-sheet",
+    }.get(selection, "projects/actual-sheet")
     shutil.copytree(source, project)
     monkeypatch.setattr(projects, "ROOT", tmp_path)
     monkeypatch.setattr(printer, "ROOT", tmp_path)
@@ -35,6 +40,9 @@ def test_print_hints_select_the_inspected_directory(
         child.mkdir()
         monkeypatch.chdir(child)
         argument = ".."
+    elif selection in ("leading-dash", "named-leading-dash"):
+        monkeypatch.chdir(tmp_path)
+        argument = f"./{project.relative_to(tmp_path)}"
     else:
         # The explicit link's name collides with a different named project.
         (tmp_path / "projects" / "alias").mkdir()

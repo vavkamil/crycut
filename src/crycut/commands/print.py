@@ -145,11 +145,13 @@ def _show_preview(
     out.print(fields(paths))
     out.print()
     resolved_directory = directory.resolve()
-    if resolved_directory.parent == (ROOT / "projects").resolve():
+    if resolved_directory.parent == (
+        ROOT / "projects"
+    ).resolve() and not resolved_directory.name.startswith("-"):
         project = resolved_directory.name
     else:
         project = os.path.relpath(resolved_directory)
-        if "/" not in project:
+        if "/" not in project or project.startswith("-"):
             project = f"./{project}"
     command = f"uv run crycut print {shlex.quote(project)} --send"
     if channel is not None:
