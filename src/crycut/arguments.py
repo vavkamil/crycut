@@ -6,7 +6,7 @@ from typing import Any, NoReturn
 
 from rich.text import Text
 
-from .ui import console, heading, notice
+from .ui import console, heading, indented, notice
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -31,7 +31,7 @@ class ArgumentParser(argparse.ArgumentParser):
             if line.rstrip().endswith(":"):
                 start = text.plain.index(line)
                 text.stylize("heading", start, start + len(line.rstrip()))
-        out.print(text, end="\n")
+        out.print(indented(text), end="\n")
 
     def exit(self, status: int = 0, message: str | None = None) -> NoReturn:
         """Report failures consistently while preserving argparse exit codes."""

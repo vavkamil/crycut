@@ -48,6 +48,8 @@ def main(argv: list[str] | None = None) -> int:
         help="Printed margin color (saved setting, or white)",
     )
     args = parser.parse_args(argv)
+    out = console()
+    heading("Export", out=out)
     try:
         profile = json.loads(PLACEMENT_PROFILE.read_text())
         source = resolve(args.design)
@@ -70,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.border_color is not None
             else saved.get("border_color", "#ffffff")
         )
-        with busy("Rendering artwork and tracing cut outlines…"):
+        with busy("Rendering artwork and tracing cut outlines…", leading_blank=False):
             count = export(
                 source,
                 output,
@@ -88,8 +90,6 @@ def main(argv: list[str] | None = None) -> int:
         subprocess.TimeoutExpired,
     ) as error:
         parser.exit(1, f"Export failed: {error}\n")
-    out = console()
-    heading("Export", out=out)
     notice(f"Exported {count} cut outlines and a 1200 x 2100 JPEG", "success", out=out)
     out.print()
     out.print(

@@ -3,6 +3,8 @@
 import io
 import re
 import shlex
+from socket import gethostname
+from urllib.parse import unquote, urlsplit
 
 import pytest
 from rich.cells import cell_len
@@ -10,13 +12,50 @@ from rich.cells import cell_len
 from crycut.commands import print as printer
 from crycut.commands import projects
 from crycut.progress import ProgressDisplay
-from crycut.ui import command_hints, console, fields, heading, notice
+from crycut.ui import command_hints, console, field_value, fields, heading, notice
 from terminal_helpers import visible
 
 
 class Terminal(io.StringIO):
     def isatty(self):
         return True
+
+
+@pytest.mark.parametrize("label", ["Project", "Preview", "Log"])
+def test_path_links_keep_relative_labels_and_encode_local_targets(
+    label, tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("TERM", "xterm-256color")
+    path = "projects/stickers #1 [draft]/žluť.png"
+    stream = Terminal()
+    out = console(stream)
+    out.width = 100
+    out.print(fields([(label, path)]))
+    output = stream.getvalue()
+    links = re.findall(r"\x1b\]8;[^;]*;([^\x1b]+)\x1b\\", output)
+    assert links
+    for link in links:
+        uri = urlsplit(link)
+        assert uri.scheme == "file"
+        assert uri.netloc == gethostname()
+        assert unquote(uri.path) == str(tmp_path / path)
+        assert uri.fragment == uri.query == ""
+        assert "%20" in link and "%23" in link and "%C5%BE" in link
+    assert field_value(label, path).plain == path
+    assert path in visible(output)
+    assert str(tmp_path) not in visible(output)
+
+
+def test_redirected_paths_contain_no_hyperlink_escape_sequences(monkeypatch):
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    stream = io.StringIO()
+    out = console(stream)
+    out.print(fields([("Preview", "projects/wordmarks/preview.png")]))
+    output = stream.getvalue()
+    assert "projects/wordmarks/preview.png" in output
+    assert "\x1b" not in output
+    assert "file://" not in output
 
 
 def test_terminal_colors_are_accents_and_values_keep_default_foreground(monkeypatch):
@@ -79,11 +118,11 @@ def test_preview_hints_are_aligned_commands_and_preserve_requested_copies(
     if copies == 1:
         assert f"Print 3 copies:   {command} --copies 3" in output
     for line in output.splitlines():
-        if line.startswith(("Print:", "Print 3 copies:")):
+        if line.lstrip().startswith(("Print:", "Print 3 copies:")):
             suggested = printer._parse_args(shlex.split(line.split(":", 1)[1])[4:])
             assert suggested.channel == channel
             assert suggested.copies == (
-                3 if line.startswith("Print 3 copies:") else copies
+                3 if line.lstrip().startswith("Print 3 copies:") else copies
             )
 
 
@@ -106,7 +145,7 @@ def test_long_command_hints_have_no_inserted_breaks_or_truncation(width, termina
     command_hints([("Print", shlex.join(arguments))], out=out)
     output = visible(stream.getvalue())
     assert "\n" not in output
-    assert output.startswith("Print:            ")
+    assert output.startswith("  Print:            ")
     assert shlex.split(output.split(":", 1)[1]) == arguments
 
 
@@ -144,7 +183,8 @@ def test_fields_wrap_long_literal_paths_and_align_values(width):
     path = "projects/[bold]my-stickers[/bold]/" + "long-name-" * 8 + "preview.png"
     out.print(fields([("Sheet", ":smile:"), ("Preview", path)]))
     lines = stream.getvalue().splitlines()
-    assert lines[0].index(":smile:") == lines[1].index("projects/") == 18
+    assert lines[0].index(":smile:") == lines[1].index("projects/") == 20
+    assert all(line.startswith("  ") for line in lines if line.strip())
     assert all(cell_len(line) <= width for line in lines)
     assert path in "".join(line.strip() for line in lines)
 
@@ -192,6 +232,7 @@ def test_live_layout_preserves_counts_and_estimates_on_narrow_terminals(width):
         assert "~0:42 remaining" in text
         assert "estimated" in text
         assert "100%" not in text
+        assert all(line.startswith("  ") for line in text.splitlines() if line.strip())
         assert all(cell_len(line) <= width for line in text.splitlines())
     finally:
         display.finish()

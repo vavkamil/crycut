@@ -2,8 +2,11 @@
 
 import sys
 
+from rich.style import Style
+from rich.text import Text
+
 from .arguments import ArgumentParser
-from .ui import command_hints, console, fields, heading
+from .ui import command_hints, console, field_value, fields, heading, indented
 
 COMMANDS = {
     "setup": "Find a printer and save its connection settings",
@@ -21,13 +24,25 @@ def print_help() -> None:
     arguments = {"new": "NAME", "export": "NAME", "print": "NAME", "monitor": "JOB_ID"}
     out = console()
     heading("crycut", out=out)
-    out.print("StickerPix — print and cut from Linux")
-    out.print("\nUsage: uv run crycut COMMAND [options]")
+    out.print(indented("StickerPix — print and cut from Linux"))
+    out.print()
+    repository = "https://github.com/vavkamil/crycut"
+    out.print(indented(Text(repository, style=Style(color="cyan", link=repository))))
+    out.print()
+    usage = Text.assemble(
+        "Usage: ", field_value("Usage", "uv run crycut COMMAND [options]")
+    )
+    usage.highlight_regex(r"\[options\]", "option")
+    out.print(indented(usage))
     heading("Commands", out=out)
     rows = []
     for command, description in COMMANDS.items():
-        syntax = f"{command} {arguments[command]}" if command in arguments else command
-        rows.append((syntax, description))
+        syntax = Text(command, style="command")
+        if command in arguments:
+            syntax.append(f" {arguments[command]}", style="argument")
+        detail = Text(description, style="description")
+        detail.highlight_regex(r"(?<!\S)--[a-z][a-z-]*", "option")
+        rows.append((syntax, detail))
     out.print(fields(rows))
     out.print()
     command_hints([("Help", "uv run crycut COMMAND --help")], out=out)

@@ -16,7 +16,7 @@ from rich.text import Text
 from .jobs import JOB_STATES
 from .models import JsonObject
 from .status import describe_alerts
-from .ui import LABEL_WIDTH, console, field_value, fields
+from .ui import LABEL_WIDTH, console, field_value, fields, indent_text
 
 
 def duration(seconds: float) -> str:
@@ -315,7 +315,7 @@ class ProgressDisplay:
 
     def _write(self, event: str, text: str) -> None:
         if not self.interactive:
-            self.console.print(Text(text), soft_wrap=True)
+            self.console.print(Text(indent_text(text)), soft_wrap=True)
             return
         # The live layout also shows fields omitted by the plain log message,
         # notably alerts and cut counts while paper is waiting near the blade.

@@ -44,7 +44,7 @@ class WorkflowTests(unittest.TestCase):
             redirect_stdout(io.StringIO()) as output,
         ):
             self.assertEqual(printer.main(["wordmarks"]), 0)
-        self.assertIn("Offline preview", output.getvalue())
+        self.assertIn("Print preview", output.getvalue())
 
     def test_send_requires_selected_job(self):
         with (

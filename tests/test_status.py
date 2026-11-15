@@ -129,7 +129,7 @@ def test_status_displays_completed_sticker_sheets(
         }
         assert status["connection"]["rfcomm_channel"] == 1
     else:
-        lines = visible(output).splitlines()
+        lines = [line.removeprefix("  ") for line in visible(output).splitlines()]
         index = next(
             i for i, line in enumerate(lines) if line.startswith("Prints left:")
         )

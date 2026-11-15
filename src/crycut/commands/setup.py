@@ -14,7 +14,17 @@ from ..discovery import DiscoveredPrinter, discover_printers
 from ..paths import PRINTER_CONFIG
 from ..status import read_status
 from ..transport import Client, resolve_rfcomm_channel
-from ..ui import busy, command_hints, console, fields, heading, listing, notice
+from ..ui import (
+    busy,
+    command_hints,
+    console,
+    fields,
+    heading,
+    indent_text,
+    indented,
+    listing,
+    notice,
+)
 
 
 def _select(printers: list[DiscoveredPrinter]) -> DiscoveredPrinter:
@@ -22,7 +32,7 @@ def _select(printers: list[DiscoveredPrinter]) -> DiscoveredPrinter:
     table = listing("#", "Printer", "Address", right=("#",))
     for index, printer in enumerate(printers, 1):
         table.add_row(Text(str(index)), Text(printer.name), Text(printer.address))
-    out.print(table)
+    out.print(indented(table))
     out.print()
     if len(printers) == 1:
         return printers[0]
@@ -31,7 +41,9 @@ def _select(printers: list[DiscoveredPrinter]) -> DiscoveredPrinter:
             "Several printers found. Run setup --mac ADDRESS to select one."
         )
     while True:
-        choice = input(f"Select printer [1-{len(printers)}], or q to cancel: ").strip()
+        choice = input(
+            indent_text(f"Select printer [1-{len(printers)}], or q to cancel: ")
+        ).strip()
         if choice.casefold() in ("q", "quit"):
             raise KeyboardInterrupt
         if choice.isdecimal() and 1 <= int(choice) <= len(printers):
@@ -76,7 +88,10 @@ def main(argv: list[str] | None = None) -> int:
             )
             selected = DiscoveredPrinter(address, name)
         else:
-            with busy(f"Searching for StickerPix printers… ({args.timeout} seconds)"):
+            with busy(
+                f"Searching for StickerPix printers… ({args.timeout} seconds)",
+                leading_blank=False,
+            ):
                 printers = discover_printers(args.timeout)
             if not printers:
                 notice(
@@ -95,9 +110,13 @@ def main(argv: list[str] | None = None) -> int:
                     "A different or invalid configuration already exists. Run setup in a terminal to replace it."
                 )
             out.print(
-                f"Saved printer: {existing.name + ' (' + existing.address + ')' if existing else 'Invalid configuration'}"
+                indented(
+                    f"Saved printer: {existing.name + ' (' + existing.address + ')' if existing else 'Invalid configuration'}"
+                )
             )
-            if input("Replace saved printer? [y/N]: ").strip().casefold() not in (
+            if input(
+                indent_text("Replace saved printer? [y/N]: ")
+            ).strip().casefold() not in (
                 "y",
                 "yes",
             ):
@@ -106,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
         out.print(fields([("Printer", selected.name), ("Address", selected.address)]))
         out.print()
         connecting = True
-        with busy("Checking connection…"):
+        with busy("Checking connection…", leading_blank=False):
             channel = resolve_rfcomm_channel(selected.address, timeout=args.timeout)
             with socket.socket(
                 socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM

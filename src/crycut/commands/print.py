@@ -125,7 +125,7 @@ def _show_preview(
         )
         return
     out = console()
-    heading("Offline preview", out=out)
+    heading("Print preview", out=out)
     summary = sheet.preview(copies)
     rows = [
         ("Sheet", summary.get("name", directory.name)),

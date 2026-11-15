@@ -9,7 +9,16 @@ from ..arguments import ArgumentParser
 from ..paths import ROOT
 from ..projects import create, source_path
 from ..sheets import list_exports
-from ..ui import command_hints, console, field_value, fields, heading, listing, notice
+from ..ui import (
+    command_hints,
+    console,
+    field_value,
+    fields,
+    heading,
+    indented,
+    listing,
+    notice,
+)
 
 
 def list_projects(argv: list[str]) -> int:
@@ -55,7 +64,7 @@ def list_projects(argv: list[str]) -> int:
                 field_value("Cuts", cuts),
                 Text(labels[row["status"]], style=styles[row["status"]]),
             )
-        out.print(table)
+        out.print(indented(table))
         errors = [row for row in rows if row["status"] == "invalid"]
         if errors:
             out.print()

@@ -148,7 +148,7 @@ def test_live_display_keeps_progress_below_status_and_clears_all_rows():
     try:
         display.show("progress", progress())
         text = visible(stream.getvalue())
-        assert "Copies:           1/3\nStatus:           Preparing" in text
+        assert "Copies:           1/3\n  Status:           Preparing" in text
         assert text.index("Status:") < text.index("Time:") < text.index("Progress:")
         assert "estimated" in text
         stream.seek(0)

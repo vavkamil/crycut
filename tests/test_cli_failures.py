@@ -264,7 +264,7 @@ def test_offline_preview_works_before_setup(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(printer, "PRINTER_CONFIG", tmp_path / "missing.json")
     args = ["tech-icons"]
     assert printer.main(args) == 0
-    assert "Offline preview" in capsys.readouterr().out
+    assert "Print preview" in capsys.readouterr().out
     assert printer.main([*args, "--json"]) == 0
     import json
 
