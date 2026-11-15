@@ -19,14 +19,12 @@ payloads, and mock metadata. Runtime connections negotiate a fresh key.
 
 Device-state names in the protocol reference came from the application's
 mappings. Printing stages, upload behavior, and the documented upload error
-were observed in printer sessions. Other error meanings have not been verified
-on hardware.
+were observed in printer sessions.
 
 Placement measurements come from the reference wordmark design and JPEG; the
 original app-generated files are not bundled. Numeric bounds retain the
-independent placement checks. The
-orientation correction is backed by geometry tests, with physical alignment QA
-still pending. See [calibration](../CALIBRATION.md) for the transforms and limits.
+independent placement checks. See [calibration](../CALIBRATION.md) for the
+transforms and limits.
 Timing records cover three successful jobs, not a broad performance benchmark.
 
 ## Reproducing and extending checks
@@ -36,4 +34,4 @@ root. All inputs needed by the offline tests are included in the repository.
 
 When adding evidence, retain original reference bytes, identify the device and
 firmware where relevant, describe any normalization, and add a focused test.
-Keep measurements separate from inferred meanings and unverified assumptions.
+Keep measurements separate from inferred meanings.

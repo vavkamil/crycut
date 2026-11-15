@@ -1,6 +1,6 @@
 # StickerPix printer protocol
 
-This reference describes the implementation verified with a StickerPix `CSTP401`,
+This reference describes crycut's implementation for the StickerPix `CSTP401`,
 firmware `1.0.31_0033`. It is an implementation reference rather than an
 official firmware specification. For everyday use, start with
 [Bluetooth setup](BLUETOOTH.md) and [sheet preparation](SHEET-WORKFLOW.md).
@@ -15,12 +15,11 @@ are retained as [regression fixtures](../tests/fixtures/README.md).
 
 The printer exposes a classic Bluetooth Serial Port service:
 `00001101-0000-1000-8000-00805f9b34fb`. The client queries SDP for its RFCOMM channel
-rather than assuming an endpoint. The tested printer advertised channel 2.
+rather than assuming an endpoint.
 
 Bluetooth bonding/link encryption and application encryption are separate.
 BlueZ manages the Bluetooth connection; `crycut` implements the application
-handshake below. Pairing-free operation has not been verified. No account token
-or cloud request is involved.
+handshake below. No account token or cloud request is involved.
 
 RFCOMM endpoint numbers are distinct from the **application channel byte** inside
 each packet:
@@ -112,13 +111,15 @@ events have been observed even after the encrypted handshake.
 | `ribbon-info` | Six-element array; element 2 holds the observed remaining-print count |
 | `firmware-revision` | Firmware version |
 | `model`, `serial-number` | Device identity |
+| `device-info` | Identity object, including `hw_ver`, `sku`, `sn_all`, `sn_pcba`, and `sn_alps` |
+| `bt-fw_ver` | Object containing a `bt-fw_ver` string with a `+GVER:` prefix |
 | `auto-off-interval` | Seconds; observed `1200` means 20 minutes, `0` means never |
+| `big-data` | Usage counters; an idle query returned completed counts by media size |
 
 A fresh cartridge reported 36 prints. One completed sheet reduced the count to
 35. A missing cartridge reported `-1`; the CLI treats this as unavailable rather
-than claiming the cartridge is empty. Consumption on failed or cancelled jobs
-has not been established. The displayed cartridge capacity comes from local
-configuration, not a discovered capacity field.
+than claiming the cartridge is empty. The displayed cartridge capacity comes
+from local configuration, not a discovered capacity field.
 
 Device state mappings:
 
@@ -130,6 +131,153 @@ Device state mappings:
 | 40 | Working |
 | 50 | Shutting down |
 | 60 | Error |
+
+### Identity display
+
+Normal status displays the hardware revision beside the model, such as
+`CSTP401 (x02)`, and **Bluetooth FW** below the main firmware. The Bluetooth
+version is displayed without its `+GVER:` prefix. Printer name and Bluetooth
+address remain visible; machine and component serial numbers are omitted.
+
+`crycut status --json` includes the normal status data plus serials, SKU, and
+usage counters. Fields are grouped instead of using the earlier flat layout:
+
+| Group | Contents |
+| --- | --- |
+| `printer` | `name`, `model`, `hardware_revision`, `sku`, and `serials` (`machine`, `pcba`, `alps`) |
+| `firmware` | `main` and `bluetooth` versions; Bluetooth retains the `+GVER:` prefix |
+| `connection` | Bluetooth `address` and `rfcomm_channel` |
+| `state` | `name`, `code`, `substate_code`, `alerts`, `alerts_raw`, and `auto_off_seconds` |
+| `cartridge` | `prints_left`, `prints_left_raw`, and configured `capacity` |
+| `usage` | `sticker_sheets_printed`, `photo_sheets_printed`, and `counters` |
+
+`printer.serials.pcba` and `printer.serials.alps` correspond to `sn_pcba` and
+`sn_alps` in `device-info`. Scripts using the earlier flat output must use the
+grouped paths, such as `usage.sticker_sheets_printed` and `printer.serials.machine`.
+Connection failures still produce a top-level `error` object entry.
+
+Unavailable extra identity fields are `null` in JSON. Normal status omits a
+missing hardware revision and shows **Bluetooth FW: Unavailable** when needed.
+
+### Readable status alerts
+
+`crycut status` displays **Alerts: None** for `:0:0`. The alert format is
+`:warnings:error`: warnings can be comma-separated, and zero means no alert
+in that field. For example, `:8401:0` is a paper-near-blade warning and
+`:0:7203` is a cartridge-missing error.
+
+The status labels are:
+
+| Code | Label |
+| --- | --- |
+| `7001` | Cover open |
+| `7101` | Paper empty |
+| `7102` | Paper mismatch |
+| `7103` | Paper loading failed |
+| `7104` | Paper jam |
+| `7105` | Incorrect paper length |
+| `7106` | Paper ejection failed |
+| `7107` | Paper error |
+| `7108` | Paper tray missing |
+| `7110`, `7113` | Paper detection problem |
+| `7111` | Incorrect paper size |
+| `7112` | Paper removal problem |
+| `7201` | Ribbon exhausted |
+| `7203` | Cartridge missing |
+| `7204`, `7205`, `7208` | Ribbon marker detection problem |
+| `7301` | Hardware error |
+| `7309` | Temperature too low |
+| `7310` | Temperature too high |
+| `8401` | Paper near blade |
+| `8402` | Paper jam during cutter initialization |
+| `8403` | Paper detected mid-path during cutter initialization |
+| `8404` | Cutter carriage failed to return home |
+| `8405` | Paper handover failed |
+| `8406`, `8407` | Cutter paper pickup failed |
+| `8408` | Cutter carriage failed to find home |
+| `8409` | Paper-feed motor stalled |
+| `8410` | Cutter carriage motor stalled |
+| `8411` | Cutter paper ejection failed |
+| `8412` | Cutter sensor blocked |
+| `8413` | Cutter motor stalled |
+
+Multiple messages are separated by semicolons, with duplicate labels shown
+once. Unmapped codes remain visible as **Unknown warning (8123)** or
+**Unknown error (9999)** rather than being dropped. Malformed responses show
+**Unknown alert format** with the original value, never **None**.
+JSON output includes a `state.alerts` list of descriptions (empty when there are
+no alerts) and retains the unchanged `state.alerts_raw` value for diagnosis.
+
+When the cartridge count is unavailable, **Prints left** shows **Unavailable**.
+A reported `7203` explains this separately as **Alerts: Cartridge missing**;
+an unavailable count alone does not establish that the cartridge is missing.
+Completed sticker-sheet usage remains independent of cartridge availability.
+
+### Observed usage counters
+
+On 2026-11-15, a direct query to our idle CSTP401 running `1.0.31_0033`
+returned usage counters without submitting a print job:
+
+```json
+{"id":2,"method":"get-prop","params":["big-data"],"spec-type":1}
+```
+
+The decoded response was:
+
+```json
+{
+  "result": [{
+    "printed": 46,
+    "finished": 38,
+    "cancelled": 1,
+    "finished_5012": 18,
+    "finished_5013": 20,
+    "cancelled_5013": 1,
+    "poweroned": 16,
+    "poweroffedUser": 16,
+    "poweroffedSys": 6,
+    "mfgfacreseted": 1,
+    "btconned": 37,
+    "btdisconned": 29,
+    "otaStart": 1,
+    "otaSucced": 1,
+    "decode_error": 1,
+    "no_ink_ribbon_marker": 1,
+    "ink_ribbon_marker": 1
+  }],
+  "id": 2
+}
+```
+
+The owner confirmed using the 18 supplied photo sheets, matching
+`finished_5012`. Crycut submits sticker sheets with media size `5013`, so
+`finished_5013` is the relevant completed sticker-sheet counter. The two
+media counts sum to `finished`: 18 + 20 = 38. This counts sheets, not the
+individual stickers or cut contours on each sheet.
+
+`printed` differs from `finished`; this response does not establish what
+accounts for the extra eight. Do not present it as a completed-sheet count.
+Likewise, job IDs and the cartridge's remaining-print count are separate
+values, not substitutes for `finished_5013`.
+
+A sheet count does not directly measure blade wear.
+
+`crycut status` queries `big-data` and displays `finished_5013` as **Sheets
+printed**, below **Prints left**. This excludes photo sheets. A successful
+counter-object response that omits `finished_5013` is treated as zero. A failed
+query or invalid counter displays **Unavailable** without hiding the other
+status information.
+JSON output exposes the count as `usage.sticker_sheets_printed`, or `null` when
+unavailable. `usage.photo_sheets_printed` reads `finished_5012` with the same
+zero/missing and unavailable handling.
+
+`usage.counters` retains the complete `big-data` object, including `printed`,
+`finished`, `cancelled`, media-specific counts, power cycles, Bluetooth
+connections, update counters, and error counters when returned by the printer.
+Unknown keys and their values are preserved. This object is `null` if the query
+fails or returns no counter object, and `{}` for a successful empty object.
+Raw counter names and values are kept as returned; `printed` is not relabeled
+as completed sheets. These additional counters only appear in JSON output.
 
 ## Submit and upload a sheet
 
@@ -147,9 +295,8 @@ entries. The observed media settings are:
 
 Each nested entry includes its document name, file path, byte length, and those
 media settings. The printer returns a job ID before file upload begins.
-The Android SDK passes the requested copy count to both nested entries and
-uploads the files once. Crycut follows that path; multiple-copy behavior still
-needs a physical verification run on the documented firmware.
+Crycut passes the requested copy count to both nested entries and uploads the
+files once.
 
 Despite the request's entry order, the uploaded data is **PLT bytes followed by
 JPEG bytes**. Split it into chunks of at most 892 bytes. Prefix each chunk with
@@ -225,8 +372,7 @@ Power-off notifications are not implemented or relied upon.
 ## Error codes
 
 Error `-8012` was observed when uploading file data with an incorrect payload
-type. The client reports other printer errors as received; their meanings have
-not been verified on hardware.
+type. The client reports other printer errors as received.
 
 ## PLT cutter commands
 

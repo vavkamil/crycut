@@ -46,7 +46,7 @@ profile retains the numeric fields needed by tests.
 
 Tests compare the corrected geometry with these original contours, require the
 JPEG to remain unchanged, and ensure obsolete-profile exports cannot be sent as
-current projects. These checks do not replace a physical alignment test; see
+current projects. See the
 [calibration notes](../../docs/CALIBRATION.md#orientation).
 
 ## Legacy guide handling

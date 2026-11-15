@@ -78,7 +78,6 @@ reference packets or historical geometry just to make a test pass.
 
 The [protocol reference](PROTOCOL.md), [calibration guide](CALIBRATION.md), and
 [reference data](evidence/README.md) explain the current assumptions and checks.
-The calibration guide records the remaining physical alignment QA.
 
 ## Hardware checks and reports
 

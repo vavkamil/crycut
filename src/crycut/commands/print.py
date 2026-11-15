@@ -127,8 +127,8 @@ def _show_preview(
     rows = [
         ("Sheet", summary.get("name", directory.name)),
         ("Image", summary["image"]),
-        ("Copies", copies),
         ("Cuts", f"{sheet.cut_count} outlines"),
+        ("Copies", copies),
     ]
     seconds = summary["estimated_execution_seconds"]
     rows.append(("Estimate", f"~{duration(seconds)} per sheet"))
@@ -138,7 +138,8 @@ def _show_preview(
         print(
             f"{'Preview:':<15}{os.path.relpath((directory / 'preview.png').resolve())}"
         )
-    print("\nAdd --send to print this sheet.\n")
+    print("\nAdd --send to print this sheet.")
+    print("Add --send --copies 3 to print three copies.\n")
 
 
 def main(argv: list[str] | None = None) -> int:

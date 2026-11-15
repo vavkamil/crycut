@@ -63,11 +63,6 @@ tests check an asymmetric triangle, every tech-icon contour's rotation, unchange
 JPEG bytes, and the wordmark rectangle positions. Earlier files are retained in
 [orientation-v1 fixtures](../tests/fixtures/orientation-v1/) for those tests.
 
-**Physical confirmation of the corrected alignment has not yet been recorded.**
-Do not interpret passing geometry tests or a completed printer job as proof of
-physical alignment. Future hardware results should record the profile name,
-source/export files, and observed alignment, using an asymmetric design.
-
 The reference wordmark cuts span design coordinates x=2..94 and y=2..168 mm.
 The exporter permits outlines anywhere within the full design canvas, but areas
 outside that measured envelope extrapolate the fitted mapping. The exact

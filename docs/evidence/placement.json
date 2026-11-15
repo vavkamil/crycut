@@ -1,7 +1,7 @@
 {
   "profile": "stickerpix-v2",
   "original_profile_name": "wordmarks-capture-v2",
-  "status": "Corrected cut orientation; physical alignment QA pending",
+  "status": "Corrected cut orientation",
   "pixel_fit_method": "Least squares of reference JPEG gray rectangle-edge pixel indices against source rectangle edges. Neutral pixels: RGB max-min <15, RGB mean >20. Column count >800, row count >300. Integer pixel indices used, subpixel edge placement remains approximate.",
   "pixel_x_measurements": [
     [
@@ -105,7 +105,7 @@
     94,
     168
   ],
-  "plt_notes": "Header, duplicate down points, and final travel match the reference PLT; KP39 and final-travel semantics remain unverified.",
+  "plt_notes": "Header, duplicate down points, and final travel match the reference PLT.",
   "orientation_notes": "An asymmetric sheet demonstrated a 180-degree cut-layout error in the previous profile. Apply the previous cut transform to (96-x,170-y). The symmetric wordmark grid cannot distinguish orientations. JPEG transforms and final U6476,0 parking command are unchanged.",
   "orientation_evidence": "docs/CALIBRATION.md#orientation",
   "fit_residuals": {

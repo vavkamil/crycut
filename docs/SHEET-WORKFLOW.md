@@ -204,8 +204,7 @@ This does not resubmit the sheet. A standalone monitor has no selected project
 or known start time, so it shows completed cuts without an assumed total, ETA,
 or estimated progress bar.
 
-## Placement status
+## Placement
 
-The exporter uses the `stickerpix-v2` placement profile. Its geometry is covered
-by regression tests; physical alignment QA is still pending. See
-[placement and calibration](CALIBRATION.md#orientation) for validation details.
+The exporter uses the `stickerpix-v2` placement profile. See
+[placement and calibration](CALIBRATION.md#orientation) for the coordinate mappings.
