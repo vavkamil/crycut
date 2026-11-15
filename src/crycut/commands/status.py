@@ -26,7 +26,7 @@ def display(status: JsonObject) -> str:
         auto_off = f"Unknown ({seconds})"
     ribbon = status["ribbon_count"]
     capacity = status.get("ribbon_capacity")
-    remaining = "Unavailable (cartridge may be absent)"
+    remaining = "Unavailable"
     if ribbon is not None:
         remaining = f"{ribbon}/{capacity}" if capacity else str(ribbon)
     sheets = status["sticker_sheets_printed"]
@@ -42,7 +42,7 @@ def display(status: JsonObject) -> str:
         ("Auto-off", auto_off),
         ("Prints left", remaining),
         ("Sheets printed", sheets if sheets is not None else "Unavailable"),
-        ("Alerts (raw)", status["alerts_raw"]),
+        ("Alerts", "; ".join(status["alerts"]) or "None"),
     ]
     sections = [
         "\n".join(f"{label + ':':<18}{value}" for label, value in rows)
