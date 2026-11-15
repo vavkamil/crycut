@@ -132,6 +132,60 @@ Device state mappings:
 | 50 | Shutting down |
 | 60 | Error |
 
+### Readable status alerts
+
+`crycut status` displays **Alerts: None** for `:0:0`. The alert format is
+`:warnings:error`: warnings can be comma-separated, and zero means no alert
+in that field. For example, `:8401:0` is a paper-near-blade warning and
+`:0:7203` is a cartridge-missing error.
+
+The status labels are:
+
+| Code | Label |
+| --- | --- |
+| `7001` | Cover open |
+| `7101` | Paper empty |
+| `7102` | Paper mismatch |
+| `7103` | Paper loading failed |
+| `7104` | Paper jam |
+| `7105` | Incorrect paper length |
+| `7106` | Paper ejection failed |
+| `7107` | Paper error |
+| `7108` | Paper tray missing |
+| `7110`, `7113` | Paper detection problem |
+| `7111` | Incorrect paper size |
+| `7112` | Paper removal problem |
+| `7201` | Ribbon exhausted |
+| `7203` | Cartridge missing |
+| `7204`, `7205`, `7208` | Ribbon marker detection problem |
+| `7301` | Hardware error |
+| `7309` | Temperature too low |
+| `7310` | Temperature too high |
+| `8401` | Paper near blade |
+| `8402` | Paper jam during cutter initialization |
+| `8403` | Paper detected mid-path during cutter initialization |
+| `8404` | Cutter carriage failed to return home |
+| `8405` | Paper handover failed |
+| `8406`, `8407` | Cutter paper pickup failed |
+| `8408` | Cutter carriage failed to find home |
+| `8409` | Paper-feed motor stalled |
+| `8410` | Cutter carriage motor stalled |
+| `8411` | Cutter paper ejection failed |
+| `8412` | Cutter sensor blocked |
+| `8413` | Cutter motor stalled |
+
+Multiple messages are separated by semicolons, with duplicate labels shown
+once. Unmapped codes remain visible as **Unknown warning (8123)** or
+**Unknown error (9999)** rather than being dropped. Malformed responses show
+**Unknown alert format** with the original value, never **None**.
+JSON output includes an `alerts` list of descriptions (empty when there are
+no alerts) and retains the unchanged `alerts_raw` value for diagnosis.
+
+When the cartridge count is unavailable, **Prints left** shows **Unavailable**.
+A reported `7203` explains this separately as **Alerts: Cartridge missing**;
+an unavailable count alone does not establish that the cartridge is missing.
+Completed sticker-sheet usage remains independent of cartridge availability.
+
 ### Observed usage counters
 
 On 2026-11-15, a direct query to our idle CSTP401 running `1.0.31_0033`

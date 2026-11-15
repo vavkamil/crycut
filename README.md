@@ -39,7 +39,8 @@ Setup discovers printers, checks the selected connection, and saves
 [Bluetooth setup](docs/BLUETOOTH.md#select-your-printer).
 
 Status shows **Prints left** for the current cartridge and **Sheets printed**
-for completed sticker sheets, excluding photos.
+for completed sticker sheets, excluding photos. **Alerts** shows readable
+messages such as **Cartridge missing**, or **None** when no alerts are reported.
 
 Create a project from the blank SVG template:
 
