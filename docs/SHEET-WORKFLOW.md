@@ -188,21 +188,13 @@ copy starts. The bar never moves backward and reaches 100% only when the printer
 confirms the job completed.
 
 The default monitoring limit is 15 minutes per requested copy. `--max-wait`
-overrides the limit for the entire job in seconds. A standalone monitor defaults
-to 15 minutes and reads the copy count from the printer.
+overrides the limit for the entire job in seconds.
 
 For a submitted project, the cut total comes from the PLT. The display tracks
 completed outlines against that fixed total for the current sheet.
 
-If monitoring stops, reconnect using the assigned job ID:
-
-```bash
-uv run crycut monitor 30
-```
-
-This does not resubmit the sheet. A standalone monitor has no selected project
-or known start time, so it shows completed cuts without an assumed total, ETA,
-or estimated progress bar.
+Ctrl+C stops monitoring without cancelling the print. Let the printer finish
+and check it before sending another sheet.
 
 ## Simulate a print
 

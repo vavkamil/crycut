@@ -19,7 +19,7 @@ from typing import Any
 
 from ..arguments import ArgumentParser
 from ..configuration import load_printer
-from ..jobs import monitor, submit
+from ..jobs import submit
 from ..paths import PRINTER_CONFIG, ROOT
 from ..progress import ProgressDisplay, duration
 from ..projects import command_argument, resolve
@@ -31,7 +31,7 @@ from .logging import EventLog
 
 
 def _parse_args(argv: list[str] | None) -> Namespace:
-    """Parse and validate print or monitor command options."""
+    """Parse and validate print command options."""
     parser = ArgumentParser(prog="crycut print", description=__doc__)
     parser.add_argument(
         "job", nargs="?", help="Project name in projects/, or a project directory"
@@ -52,12 +52,6 @@ def _parse_args(argv: list[str] | None) -> Namespace:
         "--speed",
         type=float,
         help="Simulation speed (default: 10; use 1 for real time)",
-    )
-    action.add_argument(
-        "--monitor",
-        type=int,
-        metavar="JOB_ID",
-        help="Monitor an existing job; no submission",
     )
     parser.add_argument(
         "--copies", type=int, help="Number of identical sheets (default: 1)"
@@ -101,30 +95,21 @@ def _parse_args(argv: list[str] | None) -> Namespace:
     if args.copies is not None:
         if args.copies < 1:
             parser.error("Copies must be a positive integer")
-        if args.monitor is not None:
-            parser.error(
-                "--copies selects a print quantity; it cannot be used with --monitor"
-            )
     else:
         args.copies = 1
-    if args.json and (args.send or args.monitor is not None):
+    if args.json and args.send:
         parser.error(
             "--json is for offline inspection; physical runs write JSONL logs automatically"
         )
-    if args.monitor is not None:
-        if args.job:
-            parser.error("Monitoring takes a printer job ID, not a project")
-    elif not args.job:
+    if not args.job:
         parser.error("Select a project name/directory (see: crycut projects)")
     if any(
         v is not None and (not math.isfinite(v) or v <= 0)
         for v in (args.timeout, args.interval, args.max_wait)
     ):
         parser.error("Timeouts and polling interval must be finite and positive")
-    if (args.channel is not None and not 1 <= args.channel <= 30) or (
-        args.monitor is not None and args.monitor <= 0
-    ):
-        parser.error("Use RFCOMM channel 1-30 and a positive job ID")
+    if args.channel is not None and not 1 <= args.channel <= 30:
+        parser.error("Use RFCOMM channel 1-30")
     return args
 
 
@@ -182,11 +167,11 @@ def _show_preview(
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Inspect, submit, or monitor a sheet and preserve its event log."""
+    """Inspect, simulate, or print a sheet and preserve physical job logs."""
     args = _parse_args(argv)
     client: Client | None = None
     log: EventLog | None = None
-    job_id = args.monitor
+    job_id: int | None = None
     submitting = False
     connecting = False
     playback = PlaybackClock(args.speed) if args.simulate else None
@@ -197,15 +182,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     out = display.console
     try:
-        directory = None
-        if args.monitor is not None:
-            sheet = None
-        else:
-            directory = resolve(args.job)
-            sheet = PrintSheet.load(directory)
-            display.cut_total = sheet.cut_count
+        directory = resolve(args.job)
+        sheet = PrintSheet.load(directory)
+        display.cut_total = sheet.cut_count
         if args.simulate:
-            assert sheet is not None and playback is not None
+            assert playback is not None
             heading(f"Print & cut (simulation, {args.speed:g}x)", out=out)
             display.set_summary(
                 [
@@ -228,8 +209,7 @@ def main(argv: list[str] | None = None) -> int:
                 interval=args.interval,
             )
             return 0
-        if not args.send and args.monitor is None:
-            assert directory is not None and sheet is not None
+        if not args.send:
             address = (
                 load_printer(PRINTER_CONFIG).address
                 if PRINTER_CONFIG.exists()
@@ -247,31 +227,25 @@ def main(argv: list[str] | None = None) -> int:
         path = args.log or ROOT / f"logs/print-{stamp}.jsonl"
         path.parent.mkdir(parents=True, exist_ok=True)
         log = EventLog(path)
-        heading("Print & cut" if sheet is not None else "Monitor print", out=out)
-        rows = [("Printer", config.name)]
-        if sheet is not None:
-            assert directory is not None
-            summary = sheet.preview(args.copies)
-            timing = summary["timing_estimate"]
-            rows.extend(
-                [
-                    ("Sheet", sheet.name),
-                    ("Cuts", f"{sheet.cut_count} outlines"),
-                    ("Estimate", f"~{duration(timing['total_seconds'])} per sheet"),
-                ]
-            )
-            log.write(
-                {
-                    "event": "selected_sheet",
-                    "directory": str(directory.resolve()),
-                    **summary,
-                }
-            )
-        else:
-            rows.append(("Job", args.monitor))
+        heading("Print & cut", out=out)
+        summary = sheet.preview(args.copies)
+        timing = summary["timing_estimate"]
+        rows: list[tuple[str, object]] = [
+            ("Printer", config.name),
+            ("Sheet", sheet.name),
+            ("Cuts", f"{sheet.cut_count} outlines"),
+            ("Estimate", f"~{duration(timing['total_seconds'])} per sheet"),
+        ]
+        log.write(
+            {
+                "event": "selected_sheet",
+                "directory": str(directory.resolve()),
+                **summary,
+            }
+        )
         display.set_summary(
             rows,
-            copies=args.copies if sheet is not None else None,
+            copies=args.copies,
             log_path=os.path.relpath(path.resolve()),
         )
 
@@ -298,24 +272,14 @@ def main(argv: list[str] | None = None) -> int:
             client.handshake()
             emit("connected", address=address, rfcomm_channel=channel)
             connecting = False
-            if args.monitor:
-                result = monitor(
-                    client,
-                    args.monitor,
-                    emit,
-                    interval=args.interval,
-                    max_wait=900 if args.max_wait is None else args.max_wait,
-                )
-            else:
-                assert sheet is not None
-                result = submit(
-                    client,
-                    sheet,
-                    emit,
-                    copies=args.copies,
-                    interval=args.interval,
-                    max_wait=args.max_wait,
-                )
+            result = submit(
+                client,
+                sheet,
+                emit,
+                copies=args.copies,
+                interval=args.interval,
+                max_wait=args.max_wait,
+            )
         return 0 if result.get("job-state") == 9 else 1
     except (OSError, ValueError, KeyError, TypeError, KeyboardInterrupt) as error:
         connection_failed = connecting and not isinstance(error, KeyboardInterrupt)
@@ -342,12 +306,9 @@ def main(argv: list[str] | None = None) -> int:
                 out=error_out,
             )
         if job_id is not None:
-            recovery = f"uv run crycut monitor {job_id}"
-            if args.channel is not None:
-                recovery += f" --channel {args.channel}"
             notice(
                 f"Job {job_id} was not cancelled and may still be running. "
-                f"Check it with {recovery}.",
+                "Check the printer before sending another sheet.",
                 "warning",
                 out=console(sys.stderr),
             )

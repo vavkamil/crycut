@@ -201,8 +201,8 @@ def test_redirected_messages_stay_plain_and_commands_are_not_split(monkeypatch):
     stream = io.StringIO()
     out = console(stream)
     out.width = 40
-    command = "uv run crycut monitor 42 --channel 2"
-    notice("Job 42 may still be running. Check it with " + command, "warning", out=out)
+    command = "uv run crycut setup --mac AA:BB:CC:DD:EE:FF"
+    notice("If you know the printer's address: " + command, "warning", out=out)
     assert command in stream.getvalue()
     assert "\x1b" not in stream.getvalue()
 

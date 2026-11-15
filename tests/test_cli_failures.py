@@ -60,10 +60,9 @@ def test_connection_failure_leaves_a_static_unavailable_result(
 
 
 @pytest.mark.parametrize("channel", [None, 7])
-def test_interrupted_print_recovery_reconnects_without_resubmitting(
+def test_interrupted_print_leaves_job_running_without_resubmitting(
     channel, tmp_path, monkeypatch, capsys, printer_config
 ):
-    import shlex
     from unittest.mock import MagicMock
 
     monkeypatch.setattr(printer, "PRINTER_CONFIG", printer_config)
@@ -79,23 +78,38 @@ def test_interrupted_print_recovery_reconnects_without_resubmitting(
         raise KeyboardInterrupt
 
     submit = Mock(side_effect=interrupt)
-    monitor = Mock(return_value={"job-state": 9})
     monkeypatch.setattr(printer, "submit", submit)
-    monkeypatch.setattr(printer, "monitor", monitor)
     args = ["print", "tech-icons", "--send"]
     if channel is not None:
         args.extend(["--channel", str(channel)])
     assert cli.main(args) == 130
     error = capsys.readouterr().err
-    recovery = error.split("Check it with ", 1)[1].strip().removesuffix(".")
-    assert cli.main(shlex.split(recovery)[3:]) == 0
+    assert "Job 42 was not cancelled and may still be running" in error
+    assert "Check the printer before sending another sheet" in error
+    assert "crycut monitor" not in error
     assert lookup.call_args.args == ("AA:BB:CC:DD:EE:FF", channel, 10)
     assert connection.__enter__.return_value.connect.call_args.args == (
         ("AA:BB:CC:DD:EE:FF", channel or 2),
     )
     submit.assert_called_once()
-    monitor.assert_called_once()
-    assert monitor.call_args.args[1] == 42
+    connection.__enter__.return_value.connect.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["monitor", "42"],
+        ["print", "--monitor", "42"],
+        ["print", "tech-icons", "--send", "--monitor", "42"],
+    ],
+)
+def test_removed_monitor_entry_points_never_connect(args, monkeypatch):
+    connect = Mock(side_effect=AssertionError("must reject removed commands first"))
+    monkeypatch.setattr(printer, "resolve_rfcomm_channel", connect)
+    with pytest.raises(SystemExit) as error:
+        cli.main(args)
+    assert error.value.code == 2
+    connect.assert_not_called()
 
 
 @pytest.mark.parametrize("option", ["--s", "--se", "--sen"])

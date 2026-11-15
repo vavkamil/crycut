@@ -135,7 +135,7 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(selected["name"], "tech-icons")
             self.assertTrue(log.with_suffix(".protocol.json").is_file())
 
-    def test_jobs_list_and_monitor_dispatch(self):
+    def test_jobs_list_alias(self):
         with redirect_stdout(io.StringIO()) as output:
             self.assertEqual(cli.main(["jobs", "--json"]), 0)
         self.assertTrue(
@@ -143,9 +143,6 @@ class WorkflowTests(unittest.TestCase):
                 {r["name"] for r in json.loads(output.getvalue())}
             )
         )
-        with patch("crycut.commands.print.main", return_value=0) as run:
-            self.assertEqual(cli.main(["monitor", "29"]), 0)
-        self.assertEqual(run.call_args.args[0][:2], ["--monitor", "29"])
 
 
 class TimingTests(unittest.TestCase):

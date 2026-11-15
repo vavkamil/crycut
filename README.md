@@ -83,7 +83,6 @@ uv run crycut new my-icons --png                  # Start with a transparent PNG
 uv run crycut new my-artwork --from artwork.svg   # Copy existing artwork
 uv run crycut export my-sheet --border 0          # Cut along the artwork's edges
 uv run crycut print my-sheet --simulate            # Preview live printing without a printer
-uv run crycut monitor 30                          # Reconnect to an existing job
 uv run crycut --help
 uv run crycut export --help
 ```
@@ -95,7 +94,7 @@ After editing artwork, export again before printing. To create a separate
 variation, use `uv run crycut export my-sheet --output projects/my-variation`.
 
 Run printer commands one at a time. Ctrl+C stops monitoring but does not cancel
-the print; use `monitor JOB_ID` to reconnect.
+the print.
 
 See [progress and logs](docs/BLUETOOTH.md#progress-and-logs).
 

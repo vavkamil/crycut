@@ -15,13 +15,12 @@ COMMANDS = {
     "export": "Update a project's JPEG, cut paths, and preview",
     "projects": "List projects, cut counts, and export status",
     "print": "Inspect a project; --send to print, --simulate for a demo",
-    "monitor": "Reconnect to an existing job for recovery or debugging",
 }
 
 
 def print_help() -> None:
     """Print the command overview."""
-    arguments = {"new": "NAME", "export": "NAME", "print": "NAME", "monitor": "JOB_ID"}
+    arguments = {"new": "NAME", "export": "NAME", "print": "NAME"}
     out = console()
     heading("crycut", out=out)
     out.print(indented("StickerPix — print and cut from Linux"))
@@ -82,30 +81,4 @@ def main(argv: list[str] | None = None) -> int:
     else:
         from .commands.print import main as run
 
-        if command == "monitor":
-            monitor_parser = ArgumentParser(
-                prog="crycut monitor", description=COMMANDS["monitor"]
-            )
-            monitor_parser.add_argument("job_id", type=int)
-            monitor_parser.add_argument(
-                "--channel",
-                type=int,
-                help="Override RFCOMM channel for troubleshooting",
-            )
-            monitor_parser.add_argument("--timeout", type=float, default=10)
-            monitor_parser.add_argument("--interval", type=float, default=2)
-            monitor_parser.add_argument("--max-wait", type=float, default=900)
-            args = monitor_parser.parse_args(rest)
-            rest = [
-                "--monitor",
-                str(args.job_id),
-                "--timeout",
-                str(args.timeout),
-                "--interval",
-                str(args.interval),
-                "--max-wait",
-                str(args.max_wait),
-            ]
-            if args.channel is not None:
-                rest.extend(["--channel", str(args.channel)])
     return run(rest) or 0

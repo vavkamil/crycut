@@ -111,7 +111,6 @@ def test_cli_simulation_is_offline_and_cleans_up(
         "resolve_rfcomm_channel",
         "Client",
         "submit",
-        "monitor",
         "EventLog",
     ):
         monkeypatch.setattr(printer, name, forbidden)

@@ -24,11 +24,6 @@ def test_invalid_quantity_never_connects(value):
     connect.assert_not_called()
 
 
-def test_monitor_cannot_set_quantity():
-    with pytest.raises(SystemExit):
-        printer._parse_args(["--monitor", "42", "--copies", "3"])
-
-
 def test_multiple_copy_preview_is_offline(capsys):
     with patch.object(printer.socket, "socket") as connect:
         assert printer.main(["tech-icons", "--copies", "3", "--json"]) == 0
