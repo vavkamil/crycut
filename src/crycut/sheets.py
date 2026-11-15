@@ -90,8 +90,10 @@ class PrintSheet:
         """Estimate duration from the selected cut geometry."""
         return estimate(self.cut)
 
-    def parameters(self) -> list[JsonObject]:
-        """Build the verified printer settings for one print-and-cut sheet."""
+    def parameters(self, copies: int = 1) -> list[JsonObject]:
+        """Build one combo job for the requested number of identical sheets."""
+        if type(copies) is not int or copies < 1:
+            raise ValueError("Copies must be a positive integer")
         result = []
         stem = "sheet_" + hashlib.sha256(self.data).hexdigest()[:12]
         for method, extension, format_code, content in [
@@ -104,7 +106,7 @@ class PrintSheet:
                     "id": 0,
                     "method": method,
                     "params": {
-                        "copies": 1,
+                        "copies": copies,
                         "document-format": format_code,
                         "document-name": name,
                         "filePath": name,
@@ -141,11 +143,11 @@ class PrintSheet:
                 payload_type=2,
             )
 
-    def preview(self) -> JsonObject:
+    def preview(self, copies: int = 1) -> JsonObject:
         """Describe this sheet without contacting the printer."""
         timing = self.timing
         return {
-            "copies": 1,
+            "copies": copies,
             "image": "1200 x 2100 JPEG",
             "image_bytes": len(self.image),
             "cut_bytes": len(self.cut),

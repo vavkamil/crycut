@@ -2,6 +2,7 @@
 Inspect or print the current export of a StickerPix project.
 
 Default: offline preview. --send submits one physical print-and-cut job.
+Use --copies to print several identical sheets with one upload.
 Load sticker media before sending.
 """
 
@@ -36,12 +37,17 @@ def _parse_args(argv: list[str] | None) -> Namespace:
         "--json", action="store_true", help="Structured offline project inspection"
     )
     action = parser.add_mutually_exclusive_group()
-    action.add_argument("--send", action="store_true", help="Submit one physical sheet")
+    action.add_argument(
+        "--send", action="store_true", help="Submit a physical print-and-cut job"
+    )
     action.add_argument(
         "--monitor",
         type=int,
         metavar="JOB_ID",
         help="Monitor an existing job; no submission",
+    )
+    parser.add_argument(
+        "--copies", type=int, help="Number of identical sheets (default: 1)"
     )
     parser.add_argument(
         "--channel", type=int, help="Override RFCOMM channel (default: service lookup)"
@@ -55,8 +61,7 @@ def _parse_args(argv: list[str] | None) -> Namespace:
     parser.add_argument(
         "--max-wait",
         type=float,
-        default=900,
-        help="Maximum monitoring duration in seconds",
+        help="Maximum monitoring duration for the whole job (default: 900 seconds per copy)",
     )
     parser.add_argument(
         "--log",
@@ -64,6 +69,15 @@ def _parse_args(argv: list[str] | None) -> Namespace:
         help="JSONL event log; defaults to logs/print-TIMESTAMP.jsonl",
     )
     args = parser.parse_args(argv)
+    if args.copies is not None:
+        if args.copies < 1:
+            parser.error("Copies must be a positive integer")
+        if args.monitor is not None:
+            parser.error(
+                "--copies selects a print quantity; it cannot be used with --monitor"
+            )
+    else:
+        args.copies = 1
     if args.json and (args.send or args.monitor is not None):
         parser.error(
             "--json is for offline inspection; physical runs write JSONL logs automatically"
@@ -74,7 +88,7 @@ def _parse_args(argv: list[str] | None) -> Namespace:
     elif not args.job:
         parser.error("Select a project name/directory (see: crycut projects)")
     if any(
-        not math.isfinite(v) or v <= 0
+        v is not None and (not math.isfinite(v) or v <= 0)
         for v in (args.timeout, args.interval, args.max_wait)
     ):
         parser.error("Timeouts and polling interval must be finite and positive")
@@ -91,6 +105,7 @@ def _show_preview(
     address: str | None,
     channel: int | None,
     as_json: bool,
+    copies: int = 1,
 ) -> None:
     """Display a validated export without opening a printer connection."""
     if as_json:
@@ -101,22 +116,22 @@ def _show_preview(
                     "project": str(directory.resolve()),
                     "preview": str((directory / "preview.png").resolve()),
                     "rfcomm_channel": channel or "auto (SPP service lookup)",
-                    **sheet.preview(),
+                    **sheet.preview(copies),
                 },
                 indent=2,
             )
         )
         return
     print("\nOffline preview\n")
-    summary = sheet.preview()
+    summary = sheet.preview(copies)
     rows = [
         ("Sheet", summary.get("name", directory.name)),
         ("Image", summary["image"]),
-        ("Copies", 1),
+        ("Copies", copies),
         ("Cuts", f"{sheet.cut_count} outlines"),
     ]
     seconds = summary["estimated_execution_seconds"]
-    rows.append(("Estimate", f"~{max(1, round(seconds / 60))} minutes after upload"))
+    rows.append(("Estimate", f"~{duration(seconds)} per sheet"))
     print("\n".join(f"{label + ':':<15}{value}" for label, value in rows))
     print(f"\n{'Project:':<15}{os.path.relpath(directory.resolve())}")
     if (directory / "preview.png").is_file():
@@ -149,7 +164,9 @@ def main(argv: list[str] | None = None) -> int:
                 if PRINTER_CONFIG.exists()
                 else None
             )
-            _show_preview(directory, sheet, address, args.channel, args.json)
+            _show_preview(
+                directory, sheet, address, args.channel, args.json, args.copies
+            )
             return 0
         config = load_printer(PRINTER_CONFIG)
         address = config.address
@@ -163,14 +180,13 @@ def main(argv: list[str] | None = None) -> int:
         rows = [("Printer", config.name)]
         if sheet is not None:
             assert directory is not None
-            summary = sheet.preview()
+            summary = sheet.preview(args.copies)
             timing = summary["timing_estimate"]
             rows.extend(
                 [
                     ("Sheet", sheet.name),
-                    ("Copies", 1),
                     ("Cuts", f"{sheet.cut_count} outlines"),
-                    ("Estimate", f"~{duration(timing['total_seconds'])} after upload"),
+                    ("Estimate", f"~{duration(timing['total_seconds'])} per sheet"),
                 ]
             )
             log.write(
@@ -212,12 +228,17 @@ def main(argv: list[str] | None = None) -> int:
                     args.monitor,
                     emit,
                     interval=args.interval,
-                    max_wait=args.max_wait,
+                    max_wait=900 if args.max_wait is None else args.max_wait,
                 )
             else:
                 assert sheet is not None
                 result = submit(
-                    client, sheet, emit, interval=args.interval, max_wait=args.max_wait
+                    client,
+                    sheet,
+                    emit,
+                    copies=args.copies,
+                    interval=args.interval,
+                    max_wait=args.max_wait,
                 )
         return 0 if result.get("job-state") == 9 else 1
     except (OSError, ValueError, KeyError, TypeError, KeyboardInterrupt) as error:
