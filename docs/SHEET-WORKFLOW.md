@@ -180,6 +180,13 @@ Each new copy resets the countdown. While `Paper near blade` is shown, remove
 the finished sheet; the countdown stays hidden until the alert clears.
 The client keeps polling without sending a resume command.
 
+The `Progress` bar below Status estimates overall completion across all copies.
+It advances within each sheet, refreshes every second on a terminal, and freezes
+during reported pauses. Each sheet contributes an equal share of the bar. If a
+sheet takes longer than estimated, its share stops advancing until the next
+copy starts. The bar never moves backward and reaches 100% only when the printer
+confirms the job completed.
+
 The default monitoring limit is 15 minutes per requested copy. `--max-wait`
 overrides the limit for the entire job in seconds. A standalone monitor defaults
 to 15 minutes and reads the copy count from the printer.
@@ -194,7 +201,8 @@ uv run crycut monitor 30
 ```
 
 This does not resubmit the sheet. A standalone monitor has no selected project
-or known start time, so it shows completed cuts without an assumed total or ETA.
+or known start time, so it shows completed cuts without an assumed total, ETA,
+or estimated progress bar.
 
 ## Placement status
 
