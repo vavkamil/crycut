@@ -188,21 +188,32 @@ copy starts. The bar never moves backward and reaches 100% only when the printer
 confirms the job completed.
 
 The default monitoring limit is 15 minutes per requested copy. `--max-wait`
-overrides the limit for the entire job in seconds. A standalone monitor defaults
-to 15 minutes and reads the copy count from the printer.
+overrides the limit for the entire job in seconds.
 
 For a submitted project, the cut total comes from the PLT. The display tracks
 completed outlines against that fixed total for the current sheet.
 
-If monitoring stops, reconnect using the assigned job ID:
+Ctrl+C stops monitoring without cancelling the print. Let the printer finish
+and check it before sending another sheet.
+
+## Simulate a print
+
+Use an exported project to try the live display or capture screenshots without
+a printer:
 
 ```bash
-uv run crycut monitor 30
+uv run crycut print my-sheet --simulate
+uv run crycut print my-sheet --simulate --speed 1
+uv run crycut print my-sheet --simulate --copies 3
 ```
 
-This does not resubmit the sheet. A standalone monitor has no selected project
-or known start time, so it shows completed cuts without an assumed total, ETA,
-or estimated progress bar.
+Playback defaults to 10× speed; `--speed 1` runs in real time. The simulation uses
+the same display as real printing, with modeled stages and timing based on the
+selected sheet. Multiple copies include a paper-removal pause that clears
+automatically after 30 simulated seconds.
+
+Simulation requires no printer setup, makes no Bluetooth connection, and writes
+no files. Use `--simulate` on its own, without `--send`. Ctrl+C ends the demo.
 
 ## Placement
 

@@ -27,7 +27,7 @@ The project uses `/usr/bin/python3` for Bluetooth socket support. `uv` installs
 Python libraries and development tools into the local `.venv/`; it does not
 change system packages.
 
-Turn on your printer and the notebook's Bluetooth, then find and save it:
+Turn on your printer and enable Bluetooth, then find and save the printer:
 
 ```bash
 uv run crycut setup
@@ -52,6 +52,9 @@ uv run crycut export my-sheet --border 1.25
 uv run crycut print my-sheet
 ```
 
+For later changes, edit `border_mm`, `border_color`, or `background` in
+`projects/my-sheet/export.json` and rerun `uv run crycut export my-sheet`.
+
 Open `projects/my-sheet/preview.png` to check the artwork and cut outlines.
 The pink guides appear only in the preview. Load sticker media, then send one
 sheet to the printer:
@@ -62,11 +65,8 @@ uv run crycut print my-sheet --send
 uv run crycut print my-sheet --copies 3 --send
 ```
 
-`print` without `--send` only checks the files and shows a summary. Sending a
-sheet also monitors upload, printing stages, cutting, and completion. The
-copy counter comes from the printer. The remaining time is estimated per sheet;
-completion comes from the printer. If Status shows `Paper near blade`, remove
-the finished sheet and monitoring continues automatically.
+`print` without `--send` shows a preview. If the status shows `Paper near blade`,
+remove the finished sheet so printing can continue.
 
 See [Preparing sticker sheets](docs/SHEET-WORKFLOW.md) for canvas dimensions,
 borders, colors, and previews.
@@ -82,27 +82,20 @@ uv run crycut projects                            # List local projects
 uv run crycut new my-icons --png                  # Start with a transparent PNG
 uv run crycut new my-artwork --from artwork.svg   # Copy existing artwork
 uv run crycut export my-sheet --border 0          # Cut along the artwork's edges
-uv run crycut monitor 30                          # Reconnect to an existing job
+uv run crycut print my-sheet --simulate            # Preview live printing without a printer
 uv run crycut --help
 uv run crycut export --help
 ```
 
-Cut outlines are detected from the transparent artwork. A positive `--border`
-adds an outward margin following the shapes. Use `--border-color '#ffffff'`
-and `--background '#000000'` to set the printed margin and sheet background.
-Re-exporting remembers the project's last settings unless options override them.
+Use `--border` for an outward margin, `--border-color` for its color, and
+`--background` for the sheet background.
 
-A project keeps its artwork and latest export together. Editing the artwork
-marks the export as out of date; export again before printing. To make a separate
-variation, use `export my-sheet --output projects/my-variation`.
+After editing artwork, export again before printing. To create a separate
+variation, use `uv run crycut export my-sheet --output projects/my-variation`.
 
-Each status or print command establishes its own connection to the saved printer.
-The transport is classic Bluetooth RFCOMM. No separate connection command is
-needed. Run printer commands one at a time.
+Run printer commands one at a time. Ctrl+C stops monitoring but does not cancel
+the print.
 
-Ctrl+C stops monitoring but does not cancel the physical print. Use the assigned
-job ID with `monitor` to check an interrupted run before sending another sheet.
-This is a recovery/debugging command; normal printing already monitors progress.
 See [progress and logs](docs/BLUETOOTH.md#progress-and-logs).
 
 ## Local files
@@ -127,9 +120,8 @@ projects/my-sheet/
   export.json       # Export settings and file checksums
 ```
 
-SVG projects also contain an intermediate `sheet-print.svg`. The manifest is
-local metadata. Source and generated-file checksums
-are verified before printing.
+SVG projects also contain an intermediate `sheet-print.svg`. Source and
+generated-file checksums are verified before printing.
 
 ## Development
 

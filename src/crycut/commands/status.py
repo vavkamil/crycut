@@ -4,8 +4,11 @@ import json
 import math
 import socket
 import sys
-from collections.abc import Generator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager
+from io import StringIO
+
+from rich.console import Console, Group
+from rich.text import Text
 
 from ..arguments import ArgumentParser
 from ..configuration import load_printer
@@ -13,9 +16,10 @@ from ..models import JsonObject
 from ..paths import PRINTER_CONFIG
 from ..status import read_status
 from ..transport import Client, resolve_rfcomm_channel
+from ..ui import busy, command_hints, console, fields, heading, notice
 
 
-def display(status: JsonObject) -> str:
+def summary(status: JsonObject) -> Group:
     """Format printer status as a spaced, aligned summary."""
     seconds = status["auto_off_seconds"]
     if seconds == 0:
@@ -46,17 +50,37 @@ def display(status: JsonObject) -> str:
     ]
     current = [
         ("State", status["state"]),
-        ("Alerts", "; ".join(status["alerts"]) or "None"),
+        (
+            "Alerts",
+            Text(
+                "; ".join(status["alerts"]) or "None",
+                style="warning" if status["alerts"] else "",
+            ),
+        ),
         ("Auto-off", auto_off),
         ("Prints left", remaining),
         ("Sheets printed", sheets if sheets is not None else "Unavailable"),
     ]
-    sections = [
-        "\n".join(f"{label + ':':<18}{value}" for label, value in rows)
-        for rows in (identity, current)
-    ]
-    sections = ["Status", *sections, f"{'Details:':<18}uv run crycut status --json"]
-    return "\n" + "\n\n".join(sections) + "\n"
+    return Group(
+        fields(identity),
+        Text(""),
+        fields(current),
+    )
+
+
+def display(status: JsonObject) -> str:
+    """Return the status summary without terminal styling."""
+    stream = StringIO()
+    _show_status(status, console(stream))
+    return "\n".join(line.rstrip() for line in stream.getvalue().splitlines()) + "\n"
+
+
+def _show_status(status: JsonObject, out: Console) -> None:
+    heading("Status", out=out)
+    out.print(summary(status))
+    out.print()
+    command_hints([("Details", "uv run crycut status --json")], out=out)
+    out.print()
 
 
 def structured_status(status: JsonObject) -> JsonObject:
@@ -102,20 +126,9 @@ def structured_status(status: JsonObject) -> JsonObject:
     }
 
 
-@contextmanager
-def reading_status() -> Generator[None]:
-    """Show a temporary message only when both output streams are terminals."""
-    stream = sys.stderr
-    interactive = sys.stdout.isatty() and stream.isatty()
-    if interactive:
-        stream.write("\nReading printer status…\n\n")
-        stream.flush()
-    try:
-        yield
-    finally:
-        if interactive:
-            stream.write("\r\033[2K" + "\033[1A\r\033[2K" * 3)
-            stream.flush()
+def reading_status() -> AbstractContextManager[None]:
+    """Show a temporary spinner while reading the printer."""
+    return busy("Reading printer status…")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -150,11 +163,10 @@ def main(argv: list[str] | None = None) -> int:
                 status = read_status(client, address, name)
                 status["ribbon_capacity"] = config.ribbon_capacity
                 status["rfcomm_channel"] = channel
-        print(
-            json.dumps(structured_status(status), indent=2)
-            if args.json
-            else display(status)
-        )
+        if args.json:
+            print(json.dumps(structured_status(status), indent=2))
+        else:
+            _show_status(status, console())
         return 0
     except (OSError, ValueError, KeyError, TypeError) as error:
         message = str(error)
@@ -166,13 +178,20 @@ def main(argv: list[str] | None = None) -> int:
                 ("Address", address),
                 ("Connection", "Unavailable"),
             ]
-            summary = "\n".join(f"{label + ':':<18}{value}" for label, value in rows)
-            print(
-                f"\n{summary}\n\n"
-                "Check that the printer is on and the notebook's Bluetooth is enabled.",
-                file=sys.stderr,
+            out = console(sys.stderr)
+            heading("Status", out=out)
+            out.print(fields(rows))
+            out.print()
+            notice(
+                "Check that the printer is on and Bluetooth is enabled.",
+                "error",
+                out=out,
             )
-            print(file=sys.stderr)
+            out.print()
         else:
-            print(f"\nUnable to read printer status: {message}\n", file=sys.stderr)
+            notice(
+                f"Unable to read printer status: {message}",
+                "error",
+                out=console(sys.stderr),
+            )
         return 1

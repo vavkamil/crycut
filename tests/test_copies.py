@@ -10,6 +10,9 @@ from crycut import jobs
 from crycut.commands import print as printer
 from crycut.progress import ProgressDisplay, message
 from crycut.sheets import PrintSheet
+from terminal_helpers import visible
+
+pytestmark = pytest.mark.usefixtures("manual_live_refresh")
 
 
 @pytest.mark.parametrize("value", ["0", "-1", "1.5", "three"])
@@ -19,11 +22,6 @@ def test_invalid_quantity_never_connects(value):
             printer.main(["tech-icons", "--send", "--copies", value])
     assert error.value.code == 2
     connect.assert_not_called()
-
-
-def test_monitor_cannot_set_quantity():
-    with pytest.raises(SystemExit):
-        printer._parse_args(["--monitor", "42", "--copies", "3"])
 
 
 def test_multiple_copy_preview_is_offline(capsys):
@@ -184,7 +182,7 @@ def test_counter_and_estimate_follow_printer_through_three_copies(monkeypatch):
     assert progress[1]["stage"] == "Preparing"
     assert (
         message("progress", progress[3], cut_total=32).strip()
-        == "Status:        Paper near blade"
+        == "Status:           Paper near blade"
     )
     assert "4/32 cuts" in message("progress", progress[-1], cut_total=32)
     assert "cuts" not in message("progress", progress[6], cut_total=32)
@@ -209,14 +207,14 @@ def test_terminal_resets_clock_and_redraws_both_rows_on_next_copy():
     try:
         with patch("crycut.progress.time.monotonic", return_value=100) as clock:
             display.show("progress", event)
-            assert "Copies:        1/3\nStatus:" in stream.getvalue()
+            assert "Copies:           1/3\n\n  Status:" in visible(stream.getvalue())
             clock.return_value = 200
             display.show("progress", {**event, "copy_number": 2})
             assert "\033[1A" in stream.getvalue()
-            assert stream.getvalue().endswith("~2:00 remaining")
+            assert visible(stream.getvalue()).endswith("~2:00 remaining")
             clock.return_value = 201
             display._tick()
-            assert stream.getvalue().endswith("~1:59 remaining")
+            assert visible(stream.getvalue()).endswith("~1:59 remaining")
             display.show(
                 "progress",
                 {
@@ -230,7 +228,8 @@ def test_terminal_resets_clock_and_redraws_both_rows_on_next_copy():
             clock.return_value = 300
             display._tick()
             assert stream.getvalue() == before
-            assert before.endswith("Paper near blade")
+            assert "Status:           [!] Paper near blade" in visible(before)
+            assert "Time unknown" in visible(before)
     finally:
         display.finish()
 

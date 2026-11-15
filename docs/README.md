@@ -6,6 +6,8 @@
 - [Bluetooth setup](BLUETOOTH.md): select a printer and troubleshoot connections.
 - [Preparing sticker sheets](SHEET-WORKFLOW.md): canvas sizes, transparency,
   borders, previews, and printing.
+- [Print simulation](SHEET-WORKFLOW.md#simulate-a-print): try the live display
+  and capture screenshots without a printer.
 
 ## Contributing
 

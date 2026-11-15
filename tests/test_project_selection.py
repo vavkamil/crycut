@@ -1,13 +1,72 @@
 """Project names must select the same artwork regardless of working directory."""
 
 import json
+import shlex
+import shutil
 from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
 
 from crycut import cli, projects
+from crycut.commands import export as export_command
 from crycut.commands import print as printer
+
+
+@pytest.mark.parametrize("command_name", ["print", "export"])
+@pytest.mark.parametrize(
+    "selection",
+    ["current", "parent", "symlink", "external", "leading-dash", "named-leading-dash"],
+)
+def test_print_hints_select_the_inspected_directory(
+    selection, command_name, tmp_path, monkeypatch, capsys
+):
+    source = projects.ROOT / "projects" / "wordmarks"
+    project = tmp_path / {
+        "external": "external sheet",
+        "leading-dash": "-sheets/design",
+        "named-leading-dash": "projects/-sheet",
+    }.get(selection, "projects/actual-sheet")
+    shutil.copytree(source, project)
+    monkeypatch.setattr(projects, "ROOT", tmp_path)
+    monkeypatch.setattr(printer, "ROOT", tmp_path)
+    monkeypatch.setattr(printer, "PRINTER_CONFIG", tmp_path / "printer.json")
+    connect = Mock(side_effect=AssertionError("hint inspection must not connect"))
+    monkeypatch.setattr(printer, "resolve_rfcomm_channel", connect)
+
+    if selection in ("current", "external"):
+        monkeypatch.chdir(project)
+        argument = "."
+    elif selection == "parent":
+        child = project / "nested"
+        child.mkdir()
+        monkeypatch.chdir(child)
+        argument = ".."
+    elif selection in ("leading-dash", "named-leading-dash"):
+        monkeypatch.chdir(tmp_path)
+        argument = f"./{project.relative_to(tmp_path)}"
+    else:
+        # The explicit link's name collides with a different named project.
+        (tmp_path / "projects" / "alias").mkdir()
+        (tmp_path / "alias").symlink_to(project, target_is_directory=True)
+        monkeypatch.chdir(tmp_path)
+        argument = "./alias"
+
+    monkeypatch.setattr(export_command, "export", Mock(return_value=28))
+    assert cli.main([command_name, argument]) == 0
+    hints = [
+        line.split(":", 1)[1].strip()
+        for line in capsys.readouterr().out.splitlines()
+        if line.lstrip().startswith(("Print:", "Print 3 copies:", "Inspect:"))
+    ]
+    expected_copies = (1, 3) if command_name == "print" else (1,)
+    assert len(hints) == len(expected_copies)
+    for command, copies in zip(hints, expected_copies, strict=True):
+        args = printer._parse_args(shlex.split(command)[4:])
+        assert args.send == (command_name == "print") and args.copies == copies
+        assert cli.main(["print", args.job, "--json"]) == 0
+        assert json.loads(capsys.readouterr().out)["project"] == str(project)
+    connect.assert_not_called()
 
 
 def test_create_export_print_with_a_working_directory_name_collision(
@@ -28,8 +87,21 @@ def test_create_export_print_with_a_working_directory_name_collision(
     assert cli.main(["new", "config", "--from", str(source)]) == 0
     assert "crycut export config" in capsys.readouterr().out
     assert cli.main(["export", "config"]) == 0
-    capsys.readouterr()
+    output = capsys.readouterr().out
     project = tmp_path / "projects/config"
+    inspect = next(
+        line for line in output.splitlines() if line.lstrip().startswith("Inspect:")
+    )
+    assert shlex.split(inspect.split(":", 1)[1]) == [
+        "uv",
+        "run",
+        "crycut",
+        "print",
+        "config",
+    ]
+    assert str(tmp_path) not in output
+    assert "projects/config/preview.png" in output
+    assert "projects/config" in output
     assert (project / "sheet-print.jpg").is_file()
     assert list(local.iterdir()) == [marker]
     assert marker.read_text() == "unrelated configuration"

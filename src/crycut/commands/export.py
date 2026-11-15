@@ -6,6 +6,8 @@ Uses the StickerPix placement profile to generate the print image and cut paths.
 """
 
 import json
+import os
+import shlex
 import subprocess
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -13,7 +15,8 @@ from pathlib import Path
 from ..arguments import ArgumentParser
 from ..exporter import export
 from ..paths import PLACEMENT_PROFILE
-from ..projects import resolve, source_path
+from ..projects import command_argument, resolve, source_path
+from ..ui import busy, command_hints, console, fields, heading, notice
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -45,6 +48,8 @@ def main(argv: list[str] | None = None) -> int:
         help="Printed margin color (saved setting, or white)",
     )
     args = parser.parse_args(argv)
+    out = console()
+    heading("Export", out=out)
     try:
         profile = json.loads(PLACEMENT_PROFILE.read_text())
         source = resolve(args.design)
@@ -67,15 +72,16 @@ def main(argv: list[str] | None = None) -> int:
             if args.border_color is not None
             else saved.get("border_color", "#ffffff")
         )
-        count = export(
-            source,
-            output,
-            profile,
-            background,
-            border=border,
-            border_color=border_color,
-            replace=args.output is None,
-        )
+        with busy("Rendering artwork and tracing cut outlines…", leading_blank=False):
+            count = export(
+                source,
+                output,
+                profile,
+                background,
+                border=border,
+                border_color=border_color,
+                replace=args.output is None,
+            )
     except (
         ValueError,
         OSError,
@@ -84,8 +90,19 @@ def main(argv: list[str] | None = None) -> int:
         subprocess.TimeoutExpired,
     ) as error:
         parser.exit(1, f"Export failed: {error}\n")
-    print(f"Exported {count} cut outlines and a 1200 x 2100 JPEG to {output}")
-    print(f"Preview: {output / 'preview.png'}")
-    print(f"Inspect with: uv run crycut print {output}")
-    print("Add --send to the print command to print one sheet.")
+    notice(f"Exported {count} cut outlines and a 1200 x 2100 JPEG", "success", out=out)
+    out.print()
+    out.print(
+        fields(
+            [
+                ("Project", os.path.relpath(output.resolve())),
+                ("Preview", os.path.relpath((output / "preview.png").resolve())),
+            ]
+        )
+    )
+    command_hints(
+        [("Inspect", f"uv run crycut print {shlex.quote(command_argument(output))}")],
+        out=out,
+    )
+    out.print()
     return 0

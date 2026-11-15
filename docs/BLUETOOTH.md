@@ -97,8 +97,7 @@ account or phone application is not required.
 The default is to query the saved address for its Serial Port service.
 Do not assume that every device or firmware
 uses the same endpoint. `--channel` exists as an explicit troubleshooting override
-on `status`, `print`, and `monitor`. If a print needs this override, use the
-same `--channel` when reconnecting with `monitor`.
+on `status` and `print`.
 
 Run one printer command at a time. An existing connection from another program
 or device can prevent the notebook from connecting. When a print is running,
@@ -116,7 +115,7 @@ separate from the RFCOMM endpoint; see [the protocol reference](PROTOCOL.md).
 | No Bluetooth adapter | Check the adapter in desktop settings, `bluetoothctl show`, and `rfkill list bluetooth`. |
 | `sdptool` missing | Install your distribution's package providing the BlueZ SDP tools. |
 | Service lookup times out | Move closer, check pairing, and retry after clearing a stale connection. |
-| Printer is not idle | Let its current job finish; use `monitor JOB_ID` for a known job. |
+| Printer is not idle | Let its current job finish before sending another sheet. |
 | A print command disconnects | Check the printer and any assigned job ID before submitting again. |
 
 A stale connection can be disconnected in desktop settings, or with
@@ -128,17 +127,20 @@ restart, previous job IDs may no longer be available.
 
 ```bash
 uv run crycut print my-sheet --send
-uv run crycut monitor 30
 ```
 
-The first command submits one sheet and monitors it. The second reconnects to
-job 30 without submitting anything. Standalone `monitor` is a recovery and
-debugging tool for an interrupted session, timeout, or lost connection; normal
-printing already monitors progress automatically. Ctrl+C and `--max-wait` stop
-monitoring; they do not cancel the physical job. Reconnect to the same saved
-printer before changing its setup, since the job ID belongs to that printer.
+Printing monitors progress automatically. Ctrl+C and `--max-wait` stop
+monitoring without cancelling the physical job. If monitoring is interrupted,
+let the printer finish and check it before sending another sheet.
 
 New event logs and protocol transcripts are written to `logs/`. If reporting a
 problem, include the command, error, printer model, firmware, and relevant event
 lines. Review logs before sharing: protocol transcripts can contain artwork and
 device or cartridge identifiers.
+
+For low-level debugging, reconnect to the same printer over RFCOMM, complete
+the `Client.handshake()`, then call `crycut.jobs.monitor(client, job_id, emit)`
+with the job ID from its event log and an event callback. This observes the
+existing job without resubmitting or cancelling it; there is no standalone CLI
+command. See [the transport client](../src/crycut/transport.py) and
+[job monitoring](../src/crycut/jobs.py).
