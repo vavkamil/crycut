@@ -1,13 +1,21 @@
 """Render print progress and tick the local countdown independently of polling."""
 
 import math
-import shutil
 import threading
 import time
 from typing import TextIO
 
+from rich.console import Group
+from rich.live import Live
+from rich.progress_bar import ProgressBar
+from rich.spinner import Spinner
+from rich.table import Table
+from rich.text import Text
+
 from .jobs import JOB_STATES
 from .models import JsonObject
+from .status import describe_alerts
+from .ui import LABEL_WIDTH, console, field_value, fields
 
 
 def duration(seconds: float) -> str:
@@ -21,20 +29,20 @@ def progress_bar(label: str, fraction: float) -> str:
     fraction = min(1, max(0, fraction))
     filled = int(fraction * 16)
     bar = "=" * filled + "-" * (16 - filled)
-    return f"{label + ':':<15}[{bar}] {int(fraction * 100):3d}%"
+    return f"{label + ':':<{LABEL_WIDTH + 2}}[{bar}] {int(fraction * 100):3d}%"
 
 
 def message(event: str, details: JsonObject, *, cut_total: int | None = None) -> str:
     """Format one printer event for terminal output."""
     if event == "connecting":
-        return f"{'Status:':<15}Connecting…"
+        return f"{'Status:':<{LABEL_WIDTH + 2}}Connecting…"
     if event == "connected":
-        return f"{'Status:':<15}Connected"
+        return f"{'Status:':<{LABEL_WIDTH + 2}}Connected"
     if event == "upload":
         return progress_bar("Upload", details["sent"] / details["total"])
     if event == "progress":
         if details.get("paper_near_blade"):
-            return f"{'Status:':<15}Paper near blade"
+            return f"{'Status:':<{LABEL_WIDTH + 2}}Paper near blade"
         remaining = details["estimated_remaining_seconds"]
         if remaining is None:
             eta = "time remaining unknown"
@@ -60,16 +68,16 @@ def message(event: str, details: JsonObject, *, cut_total: int | None = None) ->
         stage = details["stage"]
         if details["job_state"] not in (2, 3):
             stage = f"{state}: {stage}"
-        return f"{'Status:':<15}{stage}{alert_text}{cut} | {eta}"
+        return f"{'Status:':<{LABEL_WIDTH + 2}}{stage}{alert_text}{cut} | {eta}"
     if event == "job":
         state = JOB_STATES.get(details.get("job-state"), "Unknown")
-        return f"{'Result:':<15}{state} (job {details.get('job-id')})"
+        return f"{'Result:':<{LABEL_WIDTH + 2}}{state} (job {details.get('job-id')})"
     if event == "accepted":
-        return f"{'Job:':<15}{details['job_id']}"
+        return f"{'Job:':<{LABEL_WIDTH + 2}}{details['job_id']}"
     if event == "submitting":
-        return f"{'Status:':<15}Submitting sheet…"
+        return f"{'Status:':<{LABEL_WIDTH + 2}}Submitting sheet…"
     if event == "uploaded":
-        return f"{'Status:':<15}Upload complete; waiting for printer…"
+        return f"{'Status:':<{LABEL_WIDTH + 2}}Upload complete; waiting for printer…"
     return f"{event}: {details}"
 
 
@@ -79,7 +87,17 @@ class ProgressDisplay:
     def __init__(self, stream: TextIO, *, cut_total: int | None = None) -> None:
         """Prepare a display with an optional known outline count."""
         self.stream = stream
-        self.interactive = stream.isatty()
+        self.console = console(stream)
+        self.interactive = (
+            self.console.is_terminal and not self.console.is_dumb_terminal
+        )
+        self._live = Live(
+            console=self.console,
+            auto_refresh=True,
+            refresh_per_second=4,
+            vertical_overflow="visible",
+        )
+        self._details: JsonObject = {}
         self.active = False
         self.cut_total = cut_total
         self._lock = threading.Lock()
@@ -87,16 +105,16 @@ class ProgressDisplay:
         self._thread: threading.Thread | None = None
         self._progress: JsonObject | None = None
         self._deadline: float | None = None
-        self._last_text: str | None = None
+        self._last_frame: tuple[str, int | None, int, str] | None = None
         self._copies: int | None = None
         self._copy_number = 0
-        self._active_lines = 0
         self._sheet_estimate: float | None = None
         self._overall_fraction: float | None = None
 
     def show(self, event: str, details: JsonObject) -> None:
         """Show an event and start local countdown updates when appropriate."""
         with self._lock:
+            self._details = dict(details)
             copies = details.get("copies", self._copies)
             copy_number = details.get("copy_number", self._copy_number)
             if (copies, copy_number) != (self._copies, self._copy_number):
@@ -146,6 +164,7 @@ class ProgressDisplay:
             details["estimated_remaining_seconds"] = max(
                 0, math.ceil(self._deadline - time.monotonic())
             )
+        self._details = details
         self._write("progress", self._message("progress", details))
 
     def _message(self, event: str, details: JsonObject) -> str:
@@ -167,53 +186,147 @@ class ProgressDisplay:
             self._overall_fraction = 1.0
         if event in ("uploaded", "progress", "job"):
             text += "\n" + progress_bar("Progress", self._overall_fraction)
+            if event != "job" or details.get("job-state") != 9:
+                text += " estimated"
         return text
 
-    def _write(self, event: str, text: str) -> None:
-        if self.interactive:
-            if event in (
-                "connecting",
-                "connected",
-                "submitting",
-                "upload",
-                "uploaded",
-                "progress",
+    def _bar(self, fraction: float, *, estimated: bool = False) -> Table:
+        fraction = min(1, max(0, fraction))
+        bar = Table.grid(padding=(0, 1))
+        bar.add_column(ratio=1)
+        bar.add_column(no_wrap=True)
+        bar.add_row(
+            ProgressBar(
+                total=100,
+                completed=fraction * 100,
+                width=None,
+                style="muted",
+                complete_style="active",
+                finished_style="success",
+            ),
+            field_value(
+                "Progress",
+                f"{int(fraction * 100):3d}%" + (" estimated" if estimated else ""),
+            ),
+        )
+        return bar
+
+    def _render(self, event: str, details: JsonObject) -> Group:
+        rows: list[tuple[str, object]] = []
+        if self._copies is not None:
+            copy = (
+                f"{self._copy_number}/{self._copies}"
+                if self._copy_number
+                else f"{self._copies} queued"
+            )
+            rows.append(("Copies", copy))
+        if event == "upload":
+            rows.append(("Upload", self._bar(details["sent"] / details["total"])))
+        elif event == "progress":
+            stage = details["stage"]
+            state = details["job_state"]
+            warning = state not in (2, 3) or details.get("paper_near_blade")
+            if details.get("paper_near_blade"):
+                stage = "Paper near blade"
+            elif state not in (2, 3):
+                stage = f"{JOB_STATES.get(state, state)}: {stage}"
+            rows.append(
+                (
+                    "Status",
+                    Text(
+                        ("[!] " if warning else "") + stage,
+                        style="warning" if warning else "active",
+                    ),
+                )
+            )
+            alerts = details.get("alerts_raw")
+            if alerts and alerts != ":0:0":
+                rows.append(
+                    (
+                        "Alerts",
+                        Text("; ".join(describe_alerts(alerts)), style="warning"),
+                    )
+                )
+            count = details.get("cutting_progress")
+            if count is not None and details["stage"] in (
+                "Cutting",
+                "Retracting blade",
             ):
-                # Keep the line from wrapping, so the next update can replace it.
-                width = max(1, shutil.get_terminal_size().columns - 1)
-                lines = text.splitlines()
-                if self._copies is not None:
-                    lines.insert(0, self._copy_text())
-                lines = [
-                    line
-                    if len(line) <= width
-                    else line[: max(0, width - 3)] + "." * min(3, width)
-                    for line in lines
-                ]
-                text = "\n".join(lines)
-                if text == self._last_text:
-                    return
-                self._last_text = text
-                self._clear_active()
-                self.stream.write(text)
-                self.stream.flush()
-                self.active = True
-                self._active_lines = len(lines)
-                return
-            if self.active:
-                self._clear_active()
-            self._last_text = None
-        print(text, file=self.stream, flush=True)
+                if self.cut_total is not None and count <= self.cut_total:
+                    cut = f"{count}/{self.cut_total} cuts"
+                else:
+                    cut = f"{count} {'cut' if count == 1 else 'cuts'}"
+                    if self.cut_total is not None:
+                        cut += f" (expected {self.cut_total})"
+                rows.append(("Cuts", cut))
+            remaining = details["estimated_remaining_seconds"]
+            if remaining is None:
+                eta = "Time remaining unknown"
+            elif remaining == 0:
+                eta = "taking longer than estimated"
+            else:
+                eta = f"~{duration(remaining)} remaining"
+            rows.append(("Time", eta))
+        elif event == "job":
+            state = details.get("job-state")
+            style = "success" if state == 9 else "error" if state == 7 else "warning"
+            marker = "+" if state == 9 else "x" if state == 7 else "!"
+            rows.append(
+                (
+                    "Result",
+                    Text(
+                        f"[{marker}] {JOB_STATES.get(state, 'Unknown')} (job {details.get('job-id')})",
+                        style=style,
+                    ),
+                )
+            )
+        elif event == "accepted":
+            rows.append(("Job", details["job_id"]))
+        else:
+            label = {
+                "connecting": "Connecting…",
+                "connected": "Connected",
+                "submitting": "Submitting sheet…",
+                "uploaded": "Waiting for printer…",
+            }.get(event, event)
+            rows.append(("Status", Spinner("line", text=Text(label), style="active")))
+        if self._overall_fraction is not None and event in (
+            "uploaded",
+            "progress",
+            "job",
+        ):
+            rows.append(
+                (
+                    "Progress",
+                    self._bar(
+                        self._overall_fraction,
+                        estimated=event != "job" or details.get("job-state") != 9,
+                    ),
+                )
+            )
+        return Group(fields(rows))
+
+    def _write(self, event: str, text: str) -> None:
+        if not self.interactive:
+            self.console.print(Text(text), soft_wrap=True)
+            return
+        frame = (event, self._copies, self._copy_number, text)
+        if frame == self._last_frame:
+            return
+        self._last_frame = frame
+        renderable = self._render(event, self._details)
+        if not self.active:
+            self._live.update(renderable)
+            self._live.start(refresh=True)
+            self.active = True
+        else:
+            self._live.update(renderable, refresh=True)
+        if event == "job":
+            self._live.stop()
+            self.active = False
 
     def _copy_text(self) -> str:
-        return f"{'Copies:':<15}{self._copy_number}/{self._copies}"
-
-    def _clear_active(self) -> None:
-        self.stream.write("\r\033[2K")
-        for _ in range(max(0, self._active_lines - 1)):
-            self.stream.write("\033[1A\r\033[2K")
-        self.active = False
-        self._active_lines = 0
+        return f"{'Copies:':<{LABEL_WIDTH + 2}}{self._copy_number}/{self._copies}"
 
     def finish(self) -> None:
         """Stop the countdown thread and release the active terminal line."""
@@ -224,5 +337,5 @@ class ProgressDisplay:
             self._progress = None
             self._deadline = None
             if self.active:
-                print(file=self.stream, flush=True)
+                self._live.stop()
                 self.active = False

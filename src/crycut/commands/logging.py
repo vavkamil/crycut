@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from ..models import JsonObject
+from ..ui import console, notice
 
 
 class EventLog:
@@ -18,7 +19,9 @@ class EventLog:
 
     def _report_failure(self, error: OSError) -> None:
         if not self._failed:
-            print(f"\nCould not save event log: {error}", file=sys.stderr)
+            notice(
+                f"Could not save event log: {error}", "warning", out=console(sys.stderr)
+            )
         self._failed = True
 
     def write(self, record: JsonObject) -> None:
@@ -45,4 +48,8 @@ class EventLog:
                 json.dumps(events, indent=2) + "\n"
             )
         except OSError as error:
-            print(f"Could not save protocol log: {error}", file=sys.stderr)
+            notice(
+                f"Could not save protocol log: {error}",
+                "warning",
+                out=console(sys.stderr),
+            )

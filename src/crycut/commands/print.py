@@ -9,6 +9,7 @@ Load sticker media before sending.
 import json
 import math
 import os
+import shlex
 import socket
 import sys
 from argparse import Namespace
@@ -24,6 +25,7 @@ from ..progress import ProgressDisplay, duration
 from ..projects import resolve
 from ..sheets import PrintSheet
 from ..transport import Client, resolve_rfcomm_channel
+from ..ui import command_hints, console, fields, heading, notice
 from .logging import EventLog
 
 
@@ -122,7 +124,8 @@ def _show_preview(
             )
         )
         return
-    print("\nOffline preview\n")
+    out = console()
+    heading("Offline preview", out=out)
     summary = sheet.preview(copies)
     rows = [
         ("Sheet", summary.get("name", directory.name)),
@@ -132,14 +135,30 @@ def _show_preview(
     ]
     seconds = summary["estimated_execution_seconds"]
     rows.append(("Estimate", f"~{duration(seconds)} per sheet"))
-    print("\n".join(f"{label + ':':<15}{value}" for label, value in rows))
-    print(f"\n{'Project:':<15}{os.path.relpath(directory.resolve())}")
+    out.print(fields(rows))
+    out.print()
+    paths = [("Project", os.path.relpath(directory.resolve()))]
     if (directory / "preview.png").is_file():
-        print(
-            f"{'Preview:':<15}{os.path.relpath((directory / 'preview.png').resolve())}"
+        paths.append(
+            ("Preview", os.path.relpath((directory / "preview.png").resolve()))
         )
-    print("\nAdd --send to print this sheet.")
-    print("Add --send --copies 3 to print three copies.\n")
+    out.print(fields(paths))
+    out.print()
+    resolved_directory = directory.resolve()
+    if resolved_directory.parent == (ROOT / "projects").resolve():
+        project = resolved_directory.name
+    else:
+        project = os.path.relpath(resolved_directory)
+        if "/" not in project:
+            project = f"./{project}"
+    command = f"uv run crycut print {shlex.quote(project)} --send"
+    if channel is not None:
+        command += f" --channel {channel}"
+    hints = [("Print", command if copies == 1 else f"{command} --copies {copies}")]
+    if copies == 1:
+        hints.append(("Print 3 copies", f"{command} --copies 3"))
+    command_hints(hints, out=out)
+    out.print()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -150,6 +169,7 @@ def main(argv: list[str] | None = None) -> int:
     job_id = args.monitor
     submitting = False
     display = ProgressDisplay(sys.stdout)
+    out = display.console
     try:
         directory = None
         if args.monitor is not None:
@@ -177,7 +197,7 @@ def main(argv: list[str] | None = None) -> int:
         path = args.log or ROOT / f"logs/print-{stamp}.jsonl"
         path.parent.mkdir(parents=True, exist_ok=True)
         log = EventLog(path)
-        print("\nPrint & cut\n" if sheet is not None else "\nMonitor print\n")
+        heading("Print & cut" if sheet is not None else "Monitor print", out=out)
         rows = [("Printer", config.name)]
         if sheet is not None:
             assert directory is not None
@@ -199,8 +219,10 @@ def main(argv: list[str] | None = None) -> int:
             )
         else:
             rows.append(("Job", args.monitor))
-        print("\n".join(f"{label + ':':<15}{value}" for label, value in rows))
-        print(f"\n{'Log:':<15}{os.path.relpath(path.resolve())}\n", flush=True)
+        out.print(fields(rows))
+        out.print()
+        out.print(fields([("Log", os.path.relpath(path.resolve()))]))
+        out.print()
 
         def emit(event: str, **details: Any) -> None:
             nonlocal job_id, submitting
@@ -250,25 +272,32 @@ def main(argv: list[str] | None = None) -> int:
             else str(error)
         )
         if log and client is None and isinstance(error, OSError):
-            print(
+            notice(
                 "Cannot connect to the printer. Check power and the notebook's Bluetooth.",
-                file=sys.stderr,
+                "error",
+                out=console(sys.stderr),
             )
         else:
-            print(f"Stopped: {detail}", file=sys.stderr)
+            notice(
+                f"Stopped: {detail}",
+                "warning" if isinstance(error, KeyboardInterrupt) else "error",
+                out=console(sys.stderr),
+            )
         if job_id is not None:
             recovery = f"uv run crycut monitor {job_id}"
             if args.channel is not None:
                 recovery += f" --channel {args.channel}"
-            print(
+            notice(
                 f"Job {job_id} was not cancelled and may still be running. "
                 f"Check it with {recovery}.",
-                file=sys.stderr,
+                "warning",
+                out=console(sys.stderr),
             )
         elif submitting:
-            print(
+            notice(
                 "Submission outcome is unknown; check the printer before retrying.",
-                file=sys.stderr,
+                "warning",
+                out=console(sys.stderr),
             )
         if log:
             log.write({"event": "stopped", "detail": detail, "job_id": job_id})

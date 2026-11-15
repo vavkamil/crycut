@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
+from terminal_helpers import visible
 from crycut.commands import status as command
 from crycut.status import describe_alerts, read_status
 
@@ -78,9 +79,11 @@ def test_status_displays_completed_sticker_sheets(
     assert command.main(["--json"] if as_json else []) == 0
     output = capsys.readouterr().out
     assert "Reading printer status" not in output
-    assert "\033" not in output
+    if as_json or not interactive:
+        assert "\033" not in output
     if interactive:
-        assert progress.getvalue().endswith("\033[1A\r\033[2K")
+        assert "\033[?25h" in progress.getvalue()
+        assert "\033[2K" in progress.getvalue()
     else:
         assert progress.getvalue() == ""
     if as_json:
@@ -126,7 +129,7 @@ def test_status_displays_completed_sticker_sheets(
         }
         assert status["connection"]["rfcomm_channel"] == 1
     else:
-        lines = output.splitlines()
+        lines = visible(output).splitlines()
         index = next(
             i for i, line in enumerate(lines) if line.startswith("Prints left:")
         )
@@ -308,9 +311,16 @@ def test_reading_message_is_removed_when_interrupted(monkeypatch, error):
     monkeypatch.setattr(command.sys, "stderr", progress)
     with pytest.raises(type(error)):
         with command.reading_status():
-            assert progress.getvalue() == "\nReading printer status…\n\n"
+            lines = visible(progress.getvalue()).split("\n")
+            index = next(
+                i for i, line in enumerate(lines) if "Reading printer status…" in line
+            )
+            assert index > 0 and not lines[index - 1].strip()
+            assert index + 1 < len(lines) and not lines[index + 1].strip()
+            assert "\033[?25l" in progress.getvalue()
             raise error
-    assert progress.getvalue().endswith("\033[1A\r\033[2K")
+    assert "\033[?25h" in progress.getvalue()
+    assert "\033[2K" in progress.getvalue()
     assert output.getvalue() == ""
 
 

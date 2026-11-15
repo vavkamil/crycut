@@ -3,6 +3,7 @@
 import sys
 
 from .arguments import ArgumentParser
+from .ui import command_hints, console, fields, heading
 
 COMMANDS = {
     "setup": "Find a printer and save its connection settings",
@@ -18,13 +19,19 @@ COMMANDS = {
 def print_help() -> None:
     """Print the command overview."""
     arguments = {"new": "NAME", "export": "NAME", "print": "NAME", "monitor": "JOB_ID"}
-    print("\nStickerPix — print and cut from Linux\n")
-    print("Usage: uv run crycut COMMAND [options]\n")
-    print("Commands:")
+    out = console()
+    heading("crycut", out=out)
+    out.print("StickerPix — print and cut from Linux")
+    out.print("\nUsage: uv run crycut COMMAND [options]")
+    heading("Commands", out=out)
+    rows = []
     for command, description in COMMANDS.items():
         syntax = f"{command} {arguments[command]}" if command in arguments else command
-        print(f"  {syntax:<18}{description}")
-    print("\nHelp: uv run crycut --help or uv run crycut COMMAND --help\n")
+        rows.append((syntax, description))
+    out.print(fields(rows))
+    out.print()
+    command_hints([("Help", "uv run crycut COMMAND --help")], out=out)
+    out.print()
 
 
 def main(argv: list[str] | None = None) -> int:

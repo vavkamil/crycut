@@ -5,7 +5,12 @@ import threading
 import unittest
 from unittest.mock import patch
 
+import pytest
+
+from terminal_helpers import visible
 from crycut.progress import ProgressDisplay, message
+
+pytestmark = pytest.mark.usefixtures("manual_live_refresh")
 
 
 class Terminal(io.StringIO):
@@ -43,7 +48,7 @@ class ProgressTests(unittest.TestCase):
             self.assertTrue(updated.wait(5), "No local countdown update arrived")
         finally:
             display.finish()
-        self.assertIn("1/32 cuts", stream.getvalue())
+        self.assertIn("1/32 cuts", visible(stream.getvalue()))
         self.assertNotIn("Completed", stream.getvalue())
         self.assertFalse(display._thread.is_alive())
 
@@ -56,18 +61,20 @@ class ProgressTests(unittest.TestCase):
             display.show("progress", event)
             clock.return_value = 101
             display._tick()
-            self.assertIn("~0:04 remaining", stream.getvalue())
+            self.assertIn("~0:04 remaining", visible(stream.getvalue()))
             clock.return_value = 102
             display.show("progress", progress(4))  # Rounded/delayed poll.
-            self.assertTrue(stream.getvalue().endswith("~0:03 remaining"))
+            self.assertTrue(visible(stream.getvalue()).endswith("~0:03 remaining"))
             clock.return_value = 103
             display._tick()
-            self.assertTrue(stream.getvalue().endswith("~0:02 remaining"))
+            self.assertTrue(visible(stream.getvalue()).endswith("~0:02 remaining"))
             self.assertEqual(event["estimated_remaining_seconds"], 5)
             self.assertEqual(event["cut_contours"], 7)
             clock.return_value = 110
             display._tick()
-            self.assertTrue(stream.getvalue().endswith("taking longer than estimated"))
+            self.assertTrue(
+                visible(stream.getvalue()).endswith("taking longer than estimated")
+            )
             self.assertNotIn("Completed", stream.getvalue())
 
     def test_pause_completion_and_cleanup_stop_countdown(self):
@@ -86,14 +93,16 @@ class ProgressTests(unittest.TestCase):
             display.show("progress", progress(10))
             clock.return_value = 201
             display._tick()
-            self.assertTrue(stream.getvalue().endswith("~0:09 remaining"))
+            self.assertTrue(visible(stream.getvalue()).endswith("~0:09 remaining"))
             display.show("job", {"job-id": 30, "job-state": 9})
             before = stream.getvalue()
             display._tick()
             self.assertEqual(stream.getvalue(), before)
         display.finish()
         self.assertFalse(display._thread.is_alive())
-        self.assertTrue(stream.getvalue().endswith("Completed (job 30)\n"))
+        self.assertTrue(visible(stream.getvalue()).endswith("Completed (job 30)"))
+        self.assertIn("\x1b[?25h", stream.getvalue())
+        self.assertFalse(display._live.is_started)
 
     def test_redirected_output_does_not_animate(self):
         stream = io.StringIO()

@@ -1,13 +1,15 @@
 """Overall progress advances within sheets and waits for printer completion."""
 
 import io
-import os
 import re
 from unittest.mock import patch
 
 import pytest
 
+from terminal_helpers import visible
 from crycut.progress import ProgressDisplay
+
+pytestmark = pytest.mark.usefixtures("manual_live_refresh")
 
 
 class Terminal(io.StringIO):
@@ -28,7 +30,7 @@ def progress(copy_number=1, copies=3, remaining=120, **fields):
 
 
 def percent(stream):
-    return int(re.findall(r"Progress: +\[[=-]+\] +(\d+)%", stream.getvalue())[-1])
+    return int(re.findall(r"Progress:[^\n]*?([0-9]+)%", visible(stream.getvalue()))[-1])
 
 
 @pytest.mark.parametrize("copies", [1, 2, 3])
@@ -139,22 +141,20 @@ def test_reconnected_monitor_without_estimate_does_not_invent_progress():
     assert "Progress:" not in stream.getvalue()
 
 
-def test_three_line_display_keeps_progress_below_status_and_clears_all_rows():
+def test_live_display_keeps_progress_below_status_and_clears_all_rows():
     stream = Terminal()
     display = ProgressDisplay(stream)
+    display.console.width = 80
     try:
-        with patch(
-            "crycut.progress.shutil.get_terminal_size",
-            return_value=os.terminal_size((80, 24)),
-        ):
-            display.show("progress", progress())
-            assert (
-                "Copies:        1/3\nStatus:        Preparing | ~2:00 remaining\nProgress:"
-                in stream.getvalue()
-            )
-            stream.seek(0)
-            stream.truncate()
-            display.show("progress", progress(copy_number=2))
-            assert stream.getvalue().count("\033[1A") == 2
+        display.show("progress", progress())
+        text = visible(stream.getvalue())
+        assert "Copies:           1/3\nStatus:           Preparing" in text
+        assert text.index("Status:") < text.index("Time:") < text.index("Progress:")
+        assert "estimated" in text
+        stream.seek(0)
+        stream.truncate()
+        display.show("progress", progress(copy_number=2))
+        assert stream.getvalue().count("\033[1A") == 3
+        assert "Copies:           2/3" in visible(stream.getvalue())
     finally:
         display.finish()
