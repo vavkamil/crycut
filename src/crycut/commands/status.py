@@ -29,6 +29,7 @@ def display(status: JsonObject) -> str:
     remaining = "Unavailable (cartridge may be absent)"
     if ribbon is not None:
         remaining = f"{ribbon}/{capacity}" if capacity else str(ribbon)
+    sheets = status["sticker_sheets_printed"]
     identity = [
         ("Printer", status["name"]),
         ("Address", status["address"]),
@@ -40,10 +41,11 @@ def display(status: JsonObject) -> str:
         ("State", status["state"]),
         ("Auto-off", auto_off),
         ("Prints left", remaining),
+        ("Sheets printed", sheets if sheets is not None else "Unavailable"),
         ("Alerts (raw)", status["alerts_raw"]),
     ]
     sections = [
-        "\n".join(f"{label + ':':<15}{value}" for label, value in rows)
+        "\n".join(f"{label + ':':<18}{value}" for label, value in rows)
         for rows in (identity, current)
     ]
     return "\n" + "\n\n".join(sections) + "\n"
@@ -92,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
                 ("Address", address),
                 ("Connection", "Unavailable"),
             ]
-            summary = "\n".join(f"{label + ':':<15}{value}" for label, value in rows)
+            summary = "\n".join(f"{label + ':':<18}{value}" for label, value in rows)
             print(
                 f"\n{summary}\n\n"
                 "Check that the printer is on and the notebook's Bluetooth is enabled.",

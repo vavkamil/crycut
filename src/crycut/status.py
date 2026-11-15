@@ -1,4 +1,4 @@
-"""Read printer identity, state, and cartridge properties."""
+"""Read printer identity, state, cartridge properties, and sticker-sheet usage."""
 
 from typing import Any
 
@@ -24,7 +24,7 @@ def values(reply: JsonObject, count: int) -> list[Any]:
 
 
 def read_status(client: Client, address: str, name: str) -> JsonObject:
-    """Read printer identity, state, and cartridge information."""
+    """Read printer status, allowing unavailable optional usage counters."""
     state, substate, alerts = values(
         client.get_properties(
             ["printer-state", "printer-sub-state", "printer-state-alerts"], 1
@@ -41,6 +41,14 @@ def read_status(client: Client, address: str, name: str) -> JsonObject:
     if not isinstance(ribbon, list) or len(ribbon) != 6:
         raise ValueError("Unexpected ribbon-info response")
     count = int(ribbon[2])
+    try:
+        counters = values(client.get_properties(["big-data"], 4), 1)[0]
+    except (OSError, ValueError):
+        counters = None
+    # The sparse counter response can omit a count that is still zero.
+    sheets = counters.get("finished_5013", 0) if isinstance(counters, dict) else None
+    if type(sheets) is not int or sheets < 0:
+        sheets = None
     return {
         "name": name,
         "address": address,
@@ -54,4 +62,5 @@ def read_status(client: Client, address: str, name: str) -> JsonObject:
         "auto_off_seconds": int(auto_off["auto-off-interval"]),
         "ribbon_count": count if count >= 0 else None,
         "ribbon_count_raw": count,
+        "sticker_sheets_printed": sheets,
     }
