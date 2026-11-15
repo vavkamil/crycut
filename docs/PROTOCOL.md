@@ -113,6 +113,7 @@ events have been observed even after the encrypted handshake.
 | `firmware-revision` | Firmware version |
 | `model`, `serial-number` | Device identity |
 | `auto-off-interval` | Seconds; observed `1200` means 20 minutes, `0` means never |
+| `big-data` | Usage counters; an idle query returned completed counts by media size |
 
 A fresh cartridge reported 36 prints. One completed sheet reduced the count to
 35. A missing cartridge reported `-1`; the CLI treats this as unavailable rather
@@ -130,6 +131,66 @@ Device state mappings:
 | 40 | Working |
 | 50 | Shutting down |
 | 60 | Error |
+
+### Observed usage counters
+
+On 2026-11-15, a direct query to our idle CSTP401 running `1.0.31_0033`
+returned usage counters without submitting a print job:
+
+```json
+{"id":2,"method":"get-prop","params":["big-data"],"spec-type":1}
+```
+
+The decoded response was:
+
+```json
+{
+  "result": [{
+    "printed": 46,
+    "finished": 38,
+    "cancelled": 1,
+    "finished_5012": 18,
+    "finished_5013": 20,
+    "cancelled_5013": 1,
+    "poweroned": 16,
+    "poweroffedUser": 16,
+    "poweroffedSys": 6,
+    "mfgfacreseted": 1,
+    "btconned": 37,
+    "btdisconned": 29,
+    "otaStart": 1,
+    "otaSucced": 1,
+    "decode_error": 1,
+    "no_ink_ribbon_marker": 1,
+    "ink_ribbon_marker": 1
+  }],
+  "id": 2
+}
+```
+
+The owner confirmed using the 18 supplied photo sheets, matching
+`finished_5012`. Crycut submits sticker sheets with media size `5013`, so
+`finished_5013` is the relevant completed sticker-sheet counter. The two
+media counts sum to `finished`: 18 + 20 = 38. This counts sheets, not the
+individual stickers or cut contours on each sheet.
+
+`printed` differs from `finished`; this response does not establish what
+accounts for the extra eight. Do not present it as a completed-sheet count.
+Likewise, job IDs and the cartridge's remaining-print count are separate
+values, not substitutes for `finished_5013`.
+
+A separate `big-data-all` query timed out after 15 seconds in the same session.
+Only `big-data` returned a usable response. Factory-new printer behavior, reset
+conditions, rollover, and changes during multi-copy jobs have not been verified
+on hardware. A sheet count does not directly measure blade wear.
+
+`crycut status` queries `big-data` and displays `finished_5013` as **Sheets
+printed**, below **Prints left**. This excludes photo sheets. A successful
+counter-object response that omits `finished_5013` is treated as zero; this
+default has not been checked on a factory-new printer. A failed query or invalid
+counter displays **Unavailable** without hiding the other status information.
+JSON output exposes the count as `sticker_sheets_printed`, or `null` when
+unavailable.
 
 ## Submit and upload a sheet
 

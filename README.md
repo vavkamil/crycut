@@ -38,6 +38,9 @@ Setup discovers printers, checks the selected connection, and saves
 `config/printer.json` locally. If needed, pair the printer first; see
 [Bluetooth setup](docs/BLUETOOTH.md#select-your-printer).
 
+Status shows **Prints left** for the current cartridge and **Sheets printed**
+for completed sticker sheets, excluding photos.
+
 Create a project from the blank SVG template:
 
 ```bash
