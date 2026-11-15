@@ -79,8 +79,22 @@ def values(reply: JsonObject, count: int) -> list[Any]:
     return result
 
 
+def optional_property(client: Client, name: str, request_id: int) -> Any:
+    """Allow unsupported or unavailable extra properties without losing status."""
+    try:
+        return values(client.get_properties([name], request_id), 1)[0]
+    except (OSError, ValueError):
+        return None
+
+
+def completed_count(counters: Any, key: str) -> int | None:
+    """Missing sparse counters mean zero; invalid or unavailable counts do not."""
+    count = counters.get(key, 0) if isinstance(counters, dict) else None
+    return count if type(count) is int and count >= 0 else None
+
+
 def read_status(client: Client, address: str, name: str) -> JsonObject:
-    """Read printer status, allowing unavailable optional usage counters."""
+    """Read printer status, allowing unavailable extra identity and usage data."""
     state, substate, alerts = values(
         client.get_properties(
             ["printer-state", "printer-sub-state", "printer-state-alerts"], 1
@@ -97,15 +111,25 @@ def read_status(client: Client, address: str, name: str) -> JsonObject:
     if not isinstance(ribbon, list) or len(ribbon) != 6:
         raise ValueError("Unexpected ribbon-info response")
     count = int(ribbon[2])
-    try:
-        counters = values(client.get_properties(["big-data"], 4), 1)[0]
-    except (OSError, ValueError):
-        counters = None
-    # The sparse counter response can omit a count that is still zero.
-    sheets = counters.get("finished_5013", 0) if isinstance(counters, dict) else None
-    if type(sheets) is not int or sheets < 0:
-        sheets = None
+    counters = optional_property(client, "big-data", 4)
+    device = optional_property(client, "device-info", 5)
+    if not isinstance(device, dict):
+        device = {}
+    bluetooth = optional_property(client, "bt-fw_ver", 6)
+    extra = {
+        "hardware_revision": device.get("hw_ver"),
+        "sku": device.get("sku"),
+        "serial_pcba": device.get("sn_pcba"),
+        "serial_alps": device.get("sn_alps"),
+        "bluetooth_firmware": (
+            bluetooth.get("bt-fw_ver") if isinstance(bluetooth, dict) else None
+        ),
+    }
     return {
+        **{
+            key: value if isinstance(value, str) and value.strip() else None
+            for key, value in extra.items()
+        },
         "name": name,
         "address": address,
         "model": model,
@@ -119,5 +143,7 @@ def read_status(client: Client, address: str, name: str) -> JsonObject:
         "auto_off_seconds": int(auto_off["auto-off-interval"]),
         "ribbon_count": count if count >= 0 else None,
         "ribbon_count_raw": count,
-        "sticker_sheets_printed": sheets,
+        "sticker_sheets_printed": completed_count(counters, "finished_5013"),
+        "photo_sheets_printed": completed_count(counters, "finished_5012"),
+        "usage_counters": counters if isinstance(counters, dict) else None,
     }

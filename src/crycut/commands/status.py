@@ -30,25 +30,74 @@ def display(status: JsonObject) -> str:
     if ribbon is not None:
         remaining = f"{ribbon}/{capacity}" if capacity else str(ribbon)
     sheets = status["sticker_sheets_printed"]
+    model = status["model"]
+    if revision := status["hardware_revision"]:
+        model = f"{model} ({revision})"
+    bluetooth = status["bluetooth_firmware"]
+    bluetooth = bluetooth.removeprefix("+GVER:").strip() if bluetooth else "Unavailable"
     identity = [
         ("Printer", status["name"]),
         ("Address", status["address"]),
-        ("Model", status["model"]),
-        ("Serial", status["serial"]),
+        ("Model", model),
         ("Firmware", status["firmware"]),
+        ("Bluetooth FW", bluetooth),
     ]
     current = [
         ("State", status["state"]),
+        ("Alerts", "; ".join(status["alerts"]) or "None"),
         ("Auto-off", auto_off),
         ("Prints left", remaining),
         ("Sheets printed", sheets if sheets is not None else "Unavailable"),
-        ("Alerts", "; ".join(status["alerts"]) or "None"),
     ]
     sections = [
         "\n".join(f"{label + ':':<18}{value}" for label, value in rows)
         for rows in (identity, current)
     ]
+    sections = ["Status", *sections, f"{'Details:':<18}uv run crycut status --json"]
     return "\n" + "\n\n".join(sections) + "\n"
+
+
+def structured_status(status: JsonObject) -> JsonObject:
+    """Group detailed status while retaining raw codes and usage counters."""
+    return {
+        "printer": {
+            "name": status["name"],
+            "model": status["model"],
+            "hardware_revision": status["hardware_revision"],
+            "sku": status["sku"],
+            "serials": {
+                "machine": status["serial"],
+                "pcba": status["serial_pcba"],
+                "alps": status["serial_alps"],
+            },
+        },
+        "firmware": {
+            "main": status["firmware"],
+            "bluetooth": status["bluetooth_firmware"],
+        },
+        "connection": {
+            "address": status["address"],
+            "rfcomm_channel": status.get("rfcomm_channel"),
+        },
+        "state": {
+            "name": status["state"],
+            "code": status["state_code"],
+            "substate_code": status["substate_code"],
+            "alerts": status["alerts"],
+            "alerts_raw": status["alerts_raw"],
+            "auto_off_seconds": status["auto_off_seconds"],
+        },
+        "cartridge": {
+            "prints_left": status["ribbon_count"],
+            "prints_left_raw": status["ribbon_count_raw"],
+            "capacity": status.get("ribbon_capacity"),
+        },
+        "usage": {
+            "sticker_sheets_printed": status["sticker_sheets_printed"],
+            "photo_sheets_printed": status["photo_sheets_printed"],
+            "counters": status["usage_counters"],
+        },
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -82,7 +131,11 @@ def main(argv: list[str] | None = None) -> int:
             status = read_status(client, address, name)
             status["ribbon_capacity"] = config.ribbon_capacity
             status["rfcomm_channel"] = channel
-        print(json.dumps(status, indent=2) if args.json else display(status))
+        print(
+            json.dumps(structured_status(status), indent=2)
+            if args.json
+            else display(status)
+        )
         return 0
     except (OSError, ValueError, KeyError, TypeError) as error:
         message = str(error)
