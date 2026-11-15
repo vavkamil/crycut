@@ -166,6 +166,7 @@ def test_counter_and_estimate_follow_printer_through_three_copies(monkeypatch):
         3,
     ]
     assert all(row["copies"] == 3 for row in progress)
+    assert all(row["estimated_sheet_seconds"] == 120 for row in progress)
     assert [row["estimated_remaining_seconds"] for row in progress] == [
         None,
         120,
