@@ -204,6 +204,25 @@ This does not resubmit the sheet. A standalone monitor has no selected project
 or known start time, so it shows completed cuts without an assumed total, ETA,
 or estimated progress bar.
 
+## Simulate a print
+
+Use an exported project to try the live display or capture screenshots without
+a printer:
+
+```bash
+uv run crycut print my-sheet --simulate
+uv run crycut print my-sheet --simulate --speed 1
+uv run crycut print my-sheet --simulate --copies 3
+```
+
+Playback defaults to 10× speed; `--speed 1` runs in real time. The simulation uses
+the same display as real printing, with modeled stages and timing based on the
+selected sheet. Multiple copies include a paper-removal pause that clears
+automatically after 30 simulated seconds.
+
+Simulation requires no printer setup, makes no Bluetooth connection, and writes
+no files. Use `--simulate` on its own, without `--send`. Ctrl+C ends the demo.
+
 ## Placement
 
 The exporter uses the `stickerpix-v2` placement profile. See

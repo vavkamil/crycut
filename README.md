@@ -82,6 +82,7 @@ uv run crycut projects                            # List local projects
 uv run crycut new my-icons --png                  # Start with a transparent PNG
 uv run crycut new my-artwork --from artwork.svg   # Copy existing artwork
 uv run crycut export my-sheet --border 0          # Cut along the artwork's edges
+uv run crycut print my-sheet --simulate            # Preview live printing without a printer
 uv run crycut monitor 30                          # Reconnect to an existing job
 uv run crycut --help
 uv run crycut export --help

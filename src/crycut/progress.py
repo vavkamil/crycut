@@ -3,6 +3,7 @@
 import math
 import threading
 import time
+from collections.abc import Callable
 from copy import deepcopy
 from typing import TextIO
 
@@ -90,9 +91,16 @@ def message(event: str, details: JsonObject, *, cut_total: int | None = None) ->
 class ProgressDisplay:
     """Refresh progress on a terminal; preserve ordinary lines when redirected."""
 
-    def __init__(self, stream: TextIO, *, cut_total: int | None = None) -> None:
+    def __init__(
+        self,
+        stream: TextIO,
+        *,
+        cut_total: int | None = None,
+        clock: Callable[[], float] | None = None,
+    ) -> None:
         """Prepare a display with an optional known outline count."""
         self.stream = stream
+        self._clock = clock or (lambda: time.monotonic())
         self.console = console(stream)
         self.interactive = (
             self.console.is_terminal and not self.console.is_dumb_terminal
@@ -168,7 +176,7 @@ class ProgressDisplay:
                 elif self._deadline is None:
                     # Keep one local deadline across polls so network latency
                     # and rounded estimates cannot restart or jump the clock.
-                    self._deadline = time.monotonic() + remaining
+                    self._deadline = self._clock() + remaining
                 self._redraw_progress()
                 if self._deadline is not None and self._thread is None:
                     self._thread = threading.Thread(target=self._run_clock, daemon=True)
@@ -193,7 +201,7 @@ class ProgressDisplay:
         details = dict(self._progress)
         if self._deadline is not None:
             details["estimated_remaining_seconds"] = max(
-                0, math.ceil(self._deadline - time.monotonic())
+                0, math.ceil(self._deadline - self._clock())
             )
         self._details = details
         self._write("progress", self._message("progress", details))

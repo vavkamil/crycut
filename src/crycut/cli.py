@@ -14,7 +14,7 @@ COMMANDS = {
     "new": "Create a project from a blank template or existing artwork",
     "export": "Update a project's JPEG, cut paths, and preview",
     "projects": "List projects, cut counts, and export status",
-    "print": "Inspect a project; add --send to print and monitor it",
+    "print": "Inspect a project; --send to print, --simulate for a demo",
     "monitor": "Reconnect to an existing job for recovery or debugging",
 }
 

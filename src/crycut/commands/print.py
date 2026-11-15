@@ -24,6 +24,7 @@ from ..paths import PRINTER_CONFIG, ROOT
 from ..progress import ProgressDisplay, duration
 from ..projects import command_argument, resolve
 from ..sheets import PrintSheet
+from ..simulation import PlaybackClock, simulate
 from ..transport import Client, resolve_rfcomm_channel
 from ..ui import command_hints, console, fields, heading, notice
 from .logging import EventLog
@@ -41,6 +42,16 @@ def _parse_args(argv: list[str] | None) -> Namespace:
     action = parser.add_mutually_exclusive_group()
     action.add_argument(
         "--send", action="store_true", help="Submit a physical print-and-cut job"
+    )
+    action.add_argument(
+        "--simulate",
+        action="store_true",
+        help="Preview live printing without a printer",
+    )
+    parser.add_argument(
+        "--speed",
+        type=float,
+        help="Simulation speed (default: 10; use 1 for real time)",
     )
     action.add_argument(
         "--monitor",
@@ -71,6 +82,22 @@ def _parse_args(argv: list[str] | None) -> Namespace:
         help="JSONL event log; defaults to logs/print-TIMESTAMP.jsonl",
     )
     args = parser.parse_args(argv)
+    if args.speed is not None:
+        if not args.simulate:
+            parser.error("--speed requires --simulate")
+        if not math.isfinite(args.speed) or args.speed <= 0:
+            parser.error("Simulation speed must be finite and positive")
+    else:
+        args.speed = 10
+    if args.simulate and (
+        args.json
+        or args.log is not None
+        or args.channel is not None
+        or args.max_wait is not None
+    ):
+        parser.error(
+            "--simulate cannot be used with --json, --log, --channel, or --max-wait"
+        )
     if args.copies is not None:
         if args.copies < 1:
             parser.error("Copies must be a positive integer")
@@ -162,7 +189,12 @@ def main(argv: list[str] | None = None) -> int:
     job_id = args.monitor
     submitting = False
     connecting = False
-    display = ProgressDisplay(sys.stdout)
+    playback = PlaybackClock(args.speed) if args.simulate else None
+    display = (
+        ProgressDisplay(sys.stdout, clock=playback)
+        if playback is not None
+        else ProgressDisplay(sys.stdout)
+    )
     out = display.console
     try:
         directory = None
@@ -172,6 +204,30 @@ def main(argv: list[str] | None = None) -> int:
             directory = resolve(args.job)
             sheet = PrintSheet.load(directory)
             display.cut_total = sheet.cut_count
+        if args.simulate:
+            assert sheet is not None and playback is not None
+            heading(f"Print & cut (simulation, {args.speed:g}x)", out=out)
+            display.set_summary(
+                [
+                    ("Printer", "StickerPix (simulated)"),
+                    ("Sheet", sheet.name),
+                    ("Cuts", f"{sheet.cut_count} outlines"),
+                    ("Estimate", f"~{duration(sheet.estimate_seconds)} per sheet"),
+                ],
+                copies=args.copies,
+            )
+
+            def simulated_event(event: str, **details: Any) -> None:
+                display.show(event, details)
+
+            simulate(
+                sheet,
+                simulated_event,
+                clock=playback,
+                copies=args.copies,
+                interval=args.interval,
+            )
+            return 0
         if not args.send and args.monitor is None:
             assert directory is not None and sheet is not None
             address = (
@@ -267,7 +323,7 @@ def main(argv: list[str] | None = None) -> int:
             display.show("connection_failed", {})
         display.finish()
         detail = (
-            "Monitoring interrupted"
+            ("Simulation interrupted" if args.simulate else "Monitoring interrupted")
             if isinstance(error, KeyboardInterrupt)
             else str(error)
         )
@@ -306,6 +362,8 @@ def main(argv: list[str] | None = None) -> int:
         return 130 if isinstance(error, KeyboardInterrupt) else 1
     finally:
         display.finish()
+        if args.simulate:
+            out.print()
         if log:
             log.close()
             print(flush=True)
