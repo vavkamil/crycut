@@ -111,6 +111,8 @@ events have been observed even after the encrypted handshake.
 | `ribbon-info` | Six-element array; element 2 holds the observed remaining-print count |
 | `firmware-revision` | Firmware version |
 | `model`, `serial-number` | Device identity |
+| `device-info` | Identity object, including `hw_ver`, `sku`, `sn_all`, `sn_pcba`, and `sn_alps` |
+| `bt-fw_ver` | Object containing a `bt-fw_ver` string with a `+GVER:` prefix |
 | `auto-off-interval` | Seconds; observed `1200` means 20 minutes, `0` means never |
 | `big-data` | Usage counters; an idle query returned completed counts by media size |
 
@@ -129,6 +131,33 @@ Device state mappings:
 | 40 | Working |
 | 50 | Shutting down |
 | 60 | Error |
+
+### Identity display
+
+Normal status displays the hardware revision beside the model, such as
+`CSTP401 (x02)`, and **Bluetooth FW** below the main firmware. The Bluetooth
+version is displayed without its `+GVER:` prefix. Printer name and Bluetooth
+address remain visible; machine and component serial numbers are omitted.
+
+`crycut status --json` includes the normal status data plus serials, SKU, and
+usage counters. Fields are grouped instead of using the earlier flat layout:
+
+| Group | Contents |
+| --- | --- |
+| `printer` | `name`, `model`, `hardware_revision`, `sku`, and `serials` (`machine`, `pcba`, `alps`) |
+| `firmware` | `main` and `bluetooth` versions; Bluetooth retains the `+GVER:` prefix |
+| `connection` | Bluetooth `address` and `rfcomm_channel` |
+| `state` | `name`, `code`, `substate_code`, `alerts`, `alerts_raw`, and `auto_off_seconds` |
+| `cartridge` | `prints_left`, `prints_left_raw`, and configured `capacity` |
+| `usage` | `sticker_sheets_printed`, `photo_sheets_printed`, and `counters` |
+
+`printer.serials.pcba` and `printer.serials.alps` correspond to `sn_pcba` and
+`sn_alps` in `device-info`. Scripts using the earlier flat output must use the
+grouped paths, such as `usage.sticker_sheets_printed` and `printer.serials.machine`.
+Connection failures still produce a top-level `error` object entry.
+
+Unavailable extra identity fields are `null` in JSON. Normal status omits a
+missing hardware revision and shows **Bluetooth FW: Unavailable** when needed.
 
 ### Readable status alerts
 
@@ -176,8 +205,8 @@ Multiple messages are separated by semicolons, with duplicate labels shown
 once. Unmapped codes remain visible as **Unknown warning (8123)** or
 **Unknown error (9999)** rather than being dropped. Malformed responses show
 **Unknown alert format** with the original value, never **None**.
-JSON output includes an `alerts` list of descriptions (empty when there are
-no alerts) and retains the unchanged `alerts_raw` value for diagnosis.
+JSON output includes a `state.alerts` list of descriptions (empty when there are
+no alerts) and retains the unchanged `state.alerts_raw` value for diagnosis.
 
 When the cartridge count is unavailable, **Prints left** shows **Unavailable**.
 A reported `7203` explains this separately as **Alerts: Cartridge missing**;
@@ -238,8 +267,17 @@ printed**, below **Prints left**. This excludes photo sheets. A successful
 counter-object response that omits `finished_5013` is treated as zero. A failed
 query or invalid counter displays **Unavailable** without hiding the other
 status information.
-JSON output exposes the count as `sticker_sheets_printed`, or `null` when
-unavailable.
+JSON output exposes the count as `usage.sticker_sheets_printed`, or `null` when
+unavailable. `usage.photo_sheets_printed` reads `finished_5012` with the same
+zero/missing and unavailable handling.
+
+`usage.counters` retains the complete `big-data` object, including `printed`,
+`finished`, `cancelled`, media-specific counts, power cycles, Bluetooth
+connections, update counters, and error counters when returned by the printer.
+Unknown keys and their values are preserved. This object is `null` if the query
+fails or returns no counter object, and `{}` for a successful empty object.
+Raw counter names and values are kept as returned; `printed` is not relabeled
+as completed sheets. These additional counters only appear in JSON output.
 
 ## Submit and upload a sheet
 

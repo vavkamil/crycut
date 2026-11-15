@@ -38,10 +38,6 @@ Setup discovers printers, checks the selected connection, and saves
 `config/printer.json` locally. If needed, pair the printer first; see
 [Bluetooth setup](docs/BLUETOOTH.md#select-your-printer).
 
-Status shows **Prints left** for the current cartridge and **Sheets printed**
-for completed sticker sheets, excluding photos. **Alerts** shows readable
-messages such as **Cartridge missing**, or **None** when no alerts are reported.
-
 Create a project from the blank SVG template:
 
 ```bash
@@ -80,6 +76,8 @@ For connection setup and troubleshooting, see [Bluetooth setup](docs/BLUETOOTH.m
 ## Commands
 
 ```bash
+uv run crycut status                              # Printer status, alerts, and prints left
+uv run crycut status --json                       # Detailed printer status and usage
 uv run crycut projects                            # List local projects
 uv run crycut new my-icons --png                  # Start with a transparent PNG
 uv run crycut new my-artwork --from artwork.svg   # Copy existing artwork
@@ -152,7 +150,7 @@ For focused changes, run the relevant test file, for example
 
 ## Prerequisites
 
-- Tested on firmware `1.0.31` (0033)
+- Tested on firmware `1.0.31_0033` with Bluetooth firmware `BR8051A01B_fW_260519_r7997`.
 - Linux with a Bluetooth adapter supporting classic Bluetooth.
 - System Python 3.11+ with Bluetooth socket support, and `uv`.
 - BlueZ, including `bluetoothctl` for setup and `sdptool` for connections.
