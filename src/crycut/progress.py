@@ -3,6 +3,7 @@
 import math
 import threading
 import time
+from copy import deepcopy
 from typing import TextIO
 
 from rich.console import Group
@@ -105,7 +106,9 @@ class ProgressDisplay:
         self._thread: threading.Thread | None = None
         self._progress: JsonObject | None = None
         self._deadline: float | None = None
-        self._last_frame: tuple[str, int | None, int, str] | None = None
+        self._last_frame: (
+            tuple[str, int | None, int, int | None, float | None, JsonObject] | None
+        ) = None
         self._copies: int | None = None
         self._copy_number = 0
         self._sheet_estimate: float | None = None
@@ -310,10 +313,19 @@ class ProgressDisplay:
         if not self.interactive:
             self.console.print(Text(text), soft_wrap=True)
             return
-        frame = (event, self._copies, self._copy_number, text)
+        # The live layout also shows fields omitted by the plain log message,
+        # notably alerts and cut counts while paper is waiting near the blade.
+        frame = (
+            event,
+            self._copies,
+            self._copy_number,
+            self.cut_total,
+            self._overall_fraction,
+            self._details,
+        )
         if frame == self._last_frame:
             return
-        self._last_frame = frame
+        self._last_frame = deepcopy(frame)
         renderable = self._render(event, self._details)
         if not self.active:
             self._live.update(renderable)

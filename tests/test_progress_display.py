@@ -9,6 +9,7 @@ import pytest
 
 from terminal_helpers import visible
 from crycut.progress import ProgressDisplay, message
+from crycut.ui import console
 
 pytestmark = pytest.mark.usefixtures("manual_live_refresh")
 
@@ -30,6 +31,80 @@ def progress(remaining=5, **fields):
 
 
 class ProgressTests(unittest.TestCase):
+    def test_alerts_refresh_while_waiting_for_sheet_removal_and_next_copy(self):
+        display = ProgressDisplay(Terminal(), cut_total=32)
+        self.addCleanup(display.finish)
+
+        def snapshot():
+            stream = io.StringIO()
+            console(stream).print(display._live.renderable)
+            return visible(stream.getvalue())
+
+        event = {
+            **progress(None),
+            "stage": "Retracting blade",
+            "copies": 3,
+            "copy_number": 1,
+            "estimated_sheet_seconds": 120,
+            "cutting_progress": 32,
+            "paper_near_blade": True,
+            "alerts_raw": ":8401:0",
+        }
+        with patch("crycut.progress.time.monotonic", return_value=100) as clock:
+            display.show("progress", event)
+            self.assertIn("Paper near blade", snapshot())
+            self.assertIn("Copies:           1/3", snapshot())
+            self.assertIsNone(display._deadline)
+
+            # The main status remains identical as another warning appears
+            # and clears; the separate alert row must still update.
+            event["alerts_raw"] = ":8401:7001"
+            display.show("progress", event)
+            self.assertIn("Cover open", snapshot())
+            event["alerts_raw"] = ":8401:0"
+            display.show("progress", event)
+            self.assertNotIn("Cover open", snapshot())
+            self.assertIn("Paper near blade", snapshot())
+
+            before = snapshot()
+            clock.return_value = 200
+            display._tick()
+            self.assertEqual(snapshot(), before)
+            self.assertIsNone(display._deadline)
+
+            # Removing the sheet clears the alert without advancing the copy.
+            event.update(
+                paper_near_blade=False, alerts_raw=":0:0", estimated_remaining_seconds=5
+            )
+            display.show("progress", event)
+            self.assertNotIn("Paper near blade", snapshot())
+            self.assertNotIn("Alerts:", snapshot())
+            self.assertIn("Copies:           1/3", snapshot())
+
+            # Only the printer's next-copy event restarts the sheet estimate.
+            event.update(
+                copy_number=2, stage="Preparing", estimated_remaining_seconds=120
+            )
+            display.show("progress", event)
+            self.assertIn("Copies:           2/3", snapshot())
+            self.assertIn("Preparing", snapshot())
+            self.assertIn("~2:00 remaining", snapshot())
+            clock.return_value = 201
+            display._tick()
+            self.assertIn("~1:59 remaining", snapshot())
+
+    def test_cut_details_refresh_while_the_main_status_is_unchanged(self):
+        stream = Terminal()
+        display = ProgressDisplay(stream, cut_total=32)
+        self.addCleanup(display.finish)
+        event = progress(None, paper_near_blade=True)
+        display.show("progress", event)
+        stream.seek(0)
+        stream.truncate()
+        event["cutting_progress"] = 2
+        display.show("progress", event)
+        self.assertIn("2/32 cuts", visible(stream.getvalue()))
+
     def test_clock_refreshes_without_another_printer_event(self):
         updated = threading.Event()
         main_thread = threading.get_ident()
