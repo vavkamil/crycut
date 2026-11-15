@@ -1,6 +1,6 @@
 # crycut
 
-StickerPix — print and cut from Linux.
+StickerPix - print and cut from Linux.
 
 A small Python CLI for preparing sticker sheets and sending them directly to a
 Cricut StickerPix printer over Bluetooth. Create a design, generate its image
@@ -58,11 +58,15 @@ sheet to the printer:
 
 ```bash
 uv run crycut print my-sheet --send
+# Or print three identical sheets with one upload:
+uv run crycut print my-sheet --copies 3 --send
 ```
 
 `print` without `--send` only checks the files and shows a summary. Sending a
 sheet also monitors upload, printing stages, cutting, and completion. The
-remaining time is an estimate; completion comes from the printer.
+copy counter comes from the printer. The remaining time is estimated per sheet;
+completion comes from the printer. If Status shows `Paper near blade`, remove
+the finished sheet and monitoring continues automatically.
 
 See [Preparing sticker sheets](docs/SHEET-WORKFLOW.md) for canvas dimensions,
 borders, colors, and previews.
@@ -101,8 +105,7 @@ See [progress and logs](docs/BLUETOOTH.md#progress-and-logs).
 
 ## Local files
 
-- `projects/` contains one folder per sheet, including the supplied
-  [wordmarks](projects/wordmarks/) and [tech-icons](projects/tech-icons/) projects.
+- `projects/` contains one folder per sheet, including the supplied projects.
 - `templates/` contains the blank SVG and PNG canvases.
 - `config/` contains placement and timing settings; your local `printer.json`
   is ignored by Git.
@@ -145,6 +148,7 @@ For focused changes, run the relevant test file, for example
 
 ## Prerequisites
 
+- Tested on firmware `1.0.31` (0033)
 - Linux with a Bluetooth adapter supporting classic Bluetooth.
 - System Python 3.11+ with Bluetooth socket support, and `uv`.
 - BlueZ, including `bluetoothctl` for setup and `sdptool` for connections.

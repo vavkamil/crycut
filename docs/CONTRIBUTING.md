@@ -83,7 +83,8 @@ The calibration guide records the remaining physical alignment QA.
 ## Hardware checks and reports
 
 Use `uv run crycut print NAME` to inspect an export. Only add `--send` when
-intending to print one sheet. If a submission or connection is interrupted,
+intending to print (one sheet by default, or the requested `--copies`). If a
+submission or connection is interrupted,
 check the assigned job before resubmitting; stopping monitoring does not cancel
 printing.
 

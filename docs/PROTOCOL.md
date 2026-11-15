@@ -138,7 +138,7 @@ entries. The observed media settings are:
 
 | Setting | Value |
 | --- | --- |
-| Copies | 1 |
+| Copies | Positive integer, default 1; identical in both entries |
 | Job type | 600, print and cut |
 | Media size | 5013 |
 | Media type | 2030 |
@@ -147,6 +147,9 @@ entries. The observed media settings are:
 
 Each nested entry includes its document name, file path, byte length, and those
 media settings. The printer returns a job ID before file upload begins.
+The Android SDK passes the requested copy count to both nested entries and
+uploads the files once. Crycut follows that path; multiple-copy behavior still
+needs a physical verification run on the documented firmware.
 
 Despite the request's entry order, the uploaded data is **PLT bytes followed by
 JPEG bytes**. Split it into chunks of at most 892 bytes. Prefix each chunk with
@@ -164,6 +167,16 @@ assigned job ID.
 
 `get-job-info` takes `{"job-id":30}` and returns a list containing the matching
 job. The client also polls printer properties for the current stage.
+`printing-page-number` is the printer's current one-based copy number (`0`
+during initial preparation). The Android app uses it directly to advance its
+page display. Crycut resets the per-sheet estimate when this number increases.
+Single-copy captures show `0` becoming `1` before printing and remaining `1`
+through completion.
+
+Alert `8401` is presented as `Paper near blade`. While it is present, Crycut
+hides the countdown and keeps polling the same job. The Android app also has
+an automatic clearance-monitoring path; Crycut does not send `resume-printer`.
+Clearing the alert alone does not advance the copy counter or reset its timer.
 
 | Job state | Meaning |
 | --- | --- |
@@ -187,8 +200,9 @@ Observed stages:
 | Sub-state | Meaning |
 | --- | --- |
 | 2000 | Idle/starting |
-| 3015 | Unmapped stage |
+| 3015 | Preparing (general label; exact operation unresolved) |
 | 3016 | Decoding |
+| 3017 | Feeding paper |
 | 3018 | Printing yellow |
 | 3019 | Printing magenta |
 | 3020 | Printing cyan |

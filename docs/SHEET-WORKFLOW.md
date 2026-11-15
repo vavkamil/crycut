@@ -162,18 +162,30 @@ Load sticker media and send the selected sheet explicitly:
 
 ```bash
 uv run crycut print my-sheet --send
+uv run crycut print my-sheet --copies 3 --send
 ```
 
 The sender checks source and output checksums, JPEG dimensions, the placement
-profile, and closed cut geometry before connecting. It sends one sheet and
-shows upload percentage, printer stages, completed cuts, and estimated time.
+profile, and closed cut geometry before connecting. `--copies` defaults to one
+and accepts a positive integer. It also works in offline previews without
+`--send`. All copies share one job ID and one upload of the image and cut paths.
+The display shows upload percentage, printer stages, completed cuts, and
+estimated time per sheet.
 
 The countdown updates locally once per second; status is polled every two seconds
 by default. Estimates do not determine completion. Reported pauses suspend the
-estimate, and the printer must confirm the final result.
+estimate, and the printer must confirm the final result. `Copies: 0/3` means
+preparation; the printer advances the counter to `1/3`, `2/3`, and `3/3`.
+Each new copy resets the countdown. While `Paper near blade` is shown, remove
+the finished sheet; the countdown stays hidden until the alert clears.
+The client keeps polling without sending a resume command.
+
+The default monitoring limit is 15 minutes per requested copy. `--max-wait`
+overrides the limit for the entire job in seconds. A standalone monitor defaults
+to 15 minutes and reads the copy count from the printer.
 
 For a submitted project, the cut total comes from the PLT. The display tracks
-completed outlines against that fixed total.
+completed outlines against that fixed total for the current sheet.
 
 If monitoring stops, reconnect using the assigned job ID:
 
