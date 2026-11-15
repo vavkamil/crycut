@@ -109,7 +109,8 @@ class ProgressDisplay:
             console=self.console,
             auto_refresh=True,
             refresh_per_second=4,
-            vertical_overflow="visible",
+            # Oversized frames must stay on screen so refreshes can clear them.
+            vertical_overflow="ellipsis",
         )
         self._details: JsonObject = {}
         self.active = False

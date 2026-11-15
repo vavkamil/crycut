@@ -31,6 +31,36 @@ def progress(remaining=5, **fields):
 
 
 class ProgressTests(unittest.TestCase):
+    def test_short_terminal_bounds_refreshes_and_prints_full_final_frame(self):
+        stream = Terminal()
+        display = ProgressDisplay(stream)
+        self.addCleanup(display.finish)
+        display.console.width = 40
+        display.console.height = 12
+        display.set_summary(
+            [("Sheet", "stickers"), ("Project", "long-project-name/" * 8)],
+            copies=3,
+            log_path="logs/print.jsonl",
+        )
+        display.show("connecting", {})
+
+        # Exercise the same refresh used by Rich's automatic refresh thread,
+        # including a terminal resize without a new printer event.
+        for height in (12, 5, 1, 12):
+            display.console.height = height
+            stream.seek(0)
+            stream.truncate()
+            display._live.refresh()
+            lines = visible(stream.getvalue()).splitlines()
+            self.assertEqual(len(lines), height)
+            self.assertEqual(lines[-1].strip(), "...")
+
+        stream.seek(0)
+        stream.truncate()
+        display.show("job", {"job-id": 30, "job-state": 9})
+        self.assertIn("Completed", visible(stream.getvalue()))
+        self.assertFalse(display._live.is_started)
+
     def test_alerts_refresh_while_waiting_for_sheet_removal_and_next_copy(self):
         display = ProgressDisplay(Terminal(), cut_total=32)
         self.addCleanup(display.finish)
