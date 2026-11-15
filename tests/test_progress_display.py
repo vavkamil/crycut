@@ -51,9 +51,27 @@ class ProgressTests(unittest.TestCase):
             "alerts_raw": ":8401:0",
         }
         with patch("crycut.progress.time.monotonic", return_value=100) as clock:
+            display.show(
+                "progress",
+                {
+                    **event,
+                    "paper_near_blade": False,
+                    "alerts_raw": ":0:0",
+                    "estimated_remaining_seconds": 5,
+                },
+            )
+            progress_row = next(
+                i
+                for i, line in enumerate(snapshot().splitlines())
+                if "Progress:" in line
+            )
             display.show("progress", event)
             self.assertIn("Paper near blade", snapshot())
             self.assertIn("Copies:           1/3", snapshot())
+            self.assertNotIn("32/32 cuts", snapshot())
+            self.assertIn("Progress:", snapshot().splitlines()[progress_row])
+            self.assertNotIn("Alert:", snapshot())
+            self.assertEqual(snapshot().count("Paper near blade"), 1)
             self.assertIsNone(display._deadline)
 
             # The main status remains identical as another warning appears
@@ -61,9 +79,15 @@ class ProgressTests(unittest.TestCase):
             event["alerts_raw"] = ":8401:7001"
             display.show("progress", event)
             self.assertIn("Cover open", snapshot())
+            self.assertEqual(snapshot().count("Paper near blade"), 1)
+            self.assertGreater(
+                snapshot().index("Alert:"), snapshot().index("Progress:")
+            )
+            self.assertIn("Progress:", snapshot().splitlines()[progress_row])
             event["alerts_raw"] = ":8401:0"
             display.show("progress", event)
             self.assertNotIn("Cover open", snapshot())
+            self.assertNotIn("Alert:", snapshot())
             self.assertIn("Paper near blade", snapshot())
 
             before = snapshot()
@@ -78,7 +102,8 @@ class ProgressTests(unittest.TestCase):
             )
             display.show("progress", event)
             self.assertNotIn("Paper near blade", snapshot())
-            self.assertNotIn("Alerts:", snapshot())
+            self.assertNotIn("Alert:", snapshot())
+            self.assertIn("Progress:", snapshot().splitlines()[progress_row])
             self.assertIn("Copies:           1/3", snapshot())
 
             # Only the printer's next-copy event restarts the sheet estimate.
@@ -93,7 +118,7 @@ class ProgressTests(unittest.TestCase):
             display._tick()
             self.assertIn("~1:59 remaining", snapshot())
 
-    def test_cut_details_refresh_while_the_main_status_is_unchanged(self):
+    def test_cut_details_are_hidden_during_sheet_removal_and_return_on_resume(self):
         stream = Terminal()
         display = ProgressDisplay(stream, cut_total=32)
         self.addCleanup(display.finish)
@@ -102,6 +127,9 @@ class ProgressTests(unittest.TestCase):
         stream.seek(0)
         stream.truncate()
         event["cutting_progress"] = 2
+        display.show("progress", event)
+        self.assertNotIn("2/32 cuts", visible(stream.getvalue()))
+        event["paper_near_blade"] = False
         display.show("progress", event)
         self.assertIn("2/32 cuts", visible(stream.getvalue()))
 
@@ -175,7 +203,7 @@ class ProgressTests(unittest.TestCase):
             self.assertEqual(stream.getvalue(), before)
         display.finish()
         self.assertFalse(display._thread.is_alive())
-        self.assertTrue(visible(stream.getvalue()).endswith("Completed (job 30)"))
+        self.assertTrue(visible(stream.getvalue()).endswith("Completed 🎉"))
         self.assertIn("\x1b[?25h", stream.getvalue())
         self.assertFalse(display._live.is_started)
 

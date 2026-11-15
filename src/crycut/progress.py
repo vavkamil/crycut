@@ -7,6 +7,7 @@ from copy import deepcopy
 from typing import TextIO
 
 from rich.console import Group
+from rich.emoji import Emoji
 from rich.live import Live
 from rich.progress_bar import ProgressBar
 from rich.spinner import Spinner
@@ -48,7 +49,7 @@ def message(event: str, details: JsonObject, *, cut_total: int | None = None) ->
             return f"{'Status:':<{LABEL_WIDTH + 2}}Paper near blade"
         remaining = details["estimated_remaining_seconds"]
         if remaining is None:
-            eta = "time remaining unknown"
+            eta = "Time unknown"
         elif remaining == 0:
             eta = "taking longer than estimated"
         else:
@@ -74,7 +75,9 @@ def message(event: str, details: JsonObject, *, cut_total: int | None = None) ->
         return f"{'Status:':<{LABEL_WIDTH + 2}}{stage}{alert_text}{cut} | {eta}"
     if event == "job":
         state = JOB_STATES.get(details.get("job-state"), "Unknown")
-        return f"{'Result:':<{LABEL_WIDTH + 2}}{state} (job {details.get('job-id')})"
+        if details.get("job-state") == 9:
+            return f"{'Status:':<{LABEL_WIDTH + 2}}Completed"
+        return f"{'Status:':<{LABEL_WIDTH + 2}}{state} (job {details.get('job-id')})"
     if event == "accepted":
         return f"{'Job:':<{LABEL_WIDTH + 2}}{details['job_id']}"
     if event == "submitting":
@@ -115,6 +118,29 @@ class ProgressDisplay:
         self._copy_number = 0
         self._sheet_estimate: float | None = None
         self._overall_fraction: float | None = None
+        self._summary: list[tuple[str, object]] = []
+        self._log_path: str | None = None
+
+    def set_summary(
+        self,
+        rows: list[tuple[str, object]],
+        *,
+        copies: int | None = None,
+        log_path: str | None = None,
+    ) -> None:
+        """Keep the live copy counter with the sheet details above the status."""
+        self._summary = list(rows)
+        self._copies = copies
+        self._log_path = log_path
+        if not self.interactive:
+            summary = list(rows)
+            if copies is not None:
+                summary.append(("Copies", copies))
+            self.console.print(fields(summary))
+            self.console.print()
+            if log_path is not None:
+                self.console.print(fields([("Log", log_path)]))
+                self.console.print()
 
     def show(self, event: str, details: JsonObject) -> None:
         """Show an event and start local countdown updates when appropriate."""
@@ -191,11 +217,9 @@ class ProgressDisplay:
             self._overall_fraction = 1.0
         if event in ("uploaded", "progress", "job"):
             text += "\n" + progress_bar("Progress", self._overall_fraction)
-            if event != "job" or details.get("job-state") != 9:
-                text += " estimated"
         return text
 
-    def _bar(self, fraction: float, *, estimated: bool = False) -> Table:
+    def _bar(self, fraction: float, *, style: str = "active") -> Table:
         fraction = min(1, max(0, fraction))
         bar = Table.grid(padding=(0, 1))
         bar.add_column(ratio=1)
@@ -204,27 +228,30 @@ class ProgressDisplay:
             ProgressBar(
                 total=100,
                 completed=fraction * 100,
-                width=None,
-                style="muted",
-                complete_style="active",
+                width=32,
+                style="progress.track",
+                complete_style=style,
                 finished_style="success",
             ),
             field_value(
                 "Progress",
-                f"{int(fraction * 100):3d}%" + (" estimated" if estimated else ""),
+                f"{int(fraction * 100):3d}%",
             ),
         )
         return bar
 
     def _render(self, event: str, details: JsonObject) -> Group:
         rows: list[tuple[str, object]] = []
+        alert_rows: list[tuple[str, object]] = []
+        progress_style = "active"
+        summary = list(self._summary)
         if self._copies is not None:
             copy = (
                 f"{self._copy_number}/{self._copies}"
                 if self._copy_number
                 else f"{self._copies} queued"
             )
-            rows.append(("Copies", copy))
+            summary.append(("Copies", copy))
         if event == "connection_failed":
             rows.append(("Status", Text("Unavailable", style="error")))
         elif event == "upload":
@@ -233,31 +260,41 @@ class ProgressDisplay:
             stage = details["stage"]
             state = details["job_state"]
             warning = state not in (2, 3) or details.get("paper_near_blade")
+            progress_style = (
+                "warning"
+                if warning
+                else {
+                    "Printing yellow": "stage.yellow",
+                    "Printing magenta": "stage.magenta",
+                    "Printing cyan": "stage.cyan",
+                }.get(stage, "stage")
+            )
             if details.get("paper_near_blade"):
                 stage = "Paper near blade"
             elif state not in (2, 3):
                 stage = f"{JOB_STATES.get(state, state)}: {stage}"
-            rows.append(
-                (
-                    "Status",
-                    Text(
-                        ("[!] " if warning else "") + stage,
-                        style="warning" if warning else "active",
-                    ),
-                )
+            status = Text()
+            status.append(
+                ("[!] " if warning else "") + stage,
+                style=progress_style,
             )
             alerts = details.get("alerts_raw")
             if alerts and alerts != ":0:0":
-                rows.append(
-                    (
-                        "Alerts",
-                        Text("; ".join(describe_alerts(alerts)), style="warning"),
+                additional_alerts = [
+                    alert for alert in describe_alerts(alerts) if alert != stage
+                ]
+                if additional_alerts:
+                    alert_rows.append(
+                        (
+                            "Alert",
+                            Text("; ".join(additional_alerts), style="warning"),
+                        )
                     )
-                )
             count = details.get("cutting_progress")
-            if count is not None and details["stage"] in (
-                "Cutting",
-                "Retracting blade",
+            if (
+                not details.get("paper_near_blade")
+                and count is not None
+                and details["stage"] in ("Cutting", "Retracting blade")
             ):
                 if self.cut_total is not None and count <= self.cut_total:
                     cut = f"{count}/{self.cut_total} cuts"
@@ -265,28 +302,32 @@ class ProgressDisplay:
                     cut = f"{count} {'cut' if count == 1 else 'cuts'}"
                     if self.cut_total is not None:
                         cut += f" (expected {self.cut_total})"
-                rows.append(("Cuts", cut))
+                status.append(" ", style="default")
+                status.append(field_value("Cuts", cut))
             remaining = details["estimated_remaining_seconds"]
             if remaining is None:
-                eta = "Time remaining unknown"
+                eta = "Time unknown"
             elif remaining == 0:
                 eta = "taking longer than estimated"
             else:
                 eta = f"~{duration(remaining)} remaining"
-            rows.append(("Time", eta))
+            status.append(" | ", style="default")
+            status.append(field_value("Time", eta))
+            rows.insert(0, ("Status", status))
         elif event == "job":
             state = details.get("job-state")
             style = "success" if state == 9 else "error" if state == 7 else "warning"
+            progress_style = style
             marker = "+" if state == 9 else "x" if state == 7 else "!"
-            rows.append(
-                (
-                    "Result",
-                    Text(
-                        f"[{marker}] {JOB_STATES.get(state, 'Unknown')} (job {details.get('job-id')})",
-                        style=style,
-                    ),
-                )
+            result = Text(
+                Emoji.replace("[+] Completed :tada:")
+                if state == 9
+                else f"[{marker}] {JOB_STATES.get(state, 'Unknown')} (job {details.get('job-id')})",
+                style=style,
             )
+            if state == 9:
+                result.stylize("bold")
+            rows.append(("Status", result))
         elif event == "accepted":
             rows.append(("Job", details["job_id"]))
         else:
@@ -297,28 +338,43 @@ class ProgressDisplay:
                 "uploaded": "Waiting for printer…",
             }.get(event, event)
             rows.append(("Status", Spinner("line", text=Text(label), style="active")))
+        layout = Group()
+        if summary:
+            layout.renderables.extend([fields(summary), Text("")])
+        if self._log_path is not None:
+            layout.renderables.extend([fields([("Log", self._log_path)]), Text("")])
+        layout.renderables.append(fields(rows))
         if self._overall_fraction is not None and event in (
             "uploaded",
             "progress",
             "job",
         ):
-            rows.append(
-                (
-                    "Progress",
-                    self._bar(
-                        self._overall_fraction,
-                        estimated=event != "job" or details.get("job-state") != 9,
+            layout.renderables.extend(
+                [
+                    Text(""),
+                    fields(
+                        [
+                            (
+                                "Progress",
+                                self._bar(
+                                    self._overall_fraction,
+                                    style=progress_style,
+                                ),
+                            )
+                        ]
                     ),
-                )
+                ]
             )
-        return Group(fields(rows))
+        if alert_rows:
+            layout.renderables.extend([Text(""), fields(alert_rows)])
+        return layout
 
     def _write(self, event: str, text: str) -> None:
         if not self.interactive:
             self.console.print(Text(indent_text(text)), soft_wrap=True)
             return
         # The live layout also shows fields omitted by the plain log message,
-        # notably alerts and cut counts while paper is waiting near the blade.
+        # notably additional alerts while paper is waiting near the blade.
         frame = (
             event,
             self._copies,

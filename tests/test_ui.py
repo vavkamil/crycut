@@ -240,6 +240,50 @@ def test_project_names_are_literal_and_status_is_readable_without_color(
 
 
 @pytest.mark.usefixtures("manual_live_refresh")
+def test_live_summary_keeps_copies_under_estimate_and_cutting_on_status_line():
+    display = ProgressDisplay(Terminal(), cut_total=28)
+    display.console.width = 80
+    display.set_summary(
+        [("Sheet", "wordmarks"), ("Estimate", "~3:44 per sheet")],
+        copies=3,
+        log_path="logs/print.jsonl",
+    )
+    event = {
+        "job_state": 3,
+        "stage": "Printing cyan",
+        "copies": 3,
+        "copy_number": 1,
+        "estimated_sheet_seconds": 224,
+        "estimated_remaining_seconds": 101,
+    }
+
+    def snapshot():
+        stream = io.StringIO()
+        out = console(stream)
+        out.width = 80
+        out.print(display._live.renderable)
+        return visible(stream.getvalue())
+
+    try:
+        display.show("progress", event)
+        before = snapshot()
+        assert (
+            "Estimate:         ~3:44 per sheet\n  Copies:           1/3\n\n" in before
+        )
+        display.show("progress", {**event, "stage": "Cutting", "cutting_progress": 2})
+        cutting = snapshot()
+        assert "Status:           Cutting 2/28 cuts | ~1:41 remaining\n\n" in cutting
+        assert "Cuts:" not in cutting and "Time:" not in cutting
+        assert len(before.splitlines()) == len(cutting.splitlines())
+        display.show("progress", {**event, "copy_number": 2})
+        assert (
+            "Estimate:         ~3:44 per sheet\n  Copies:           2/3" in snapshot()
+        )
+    finally:
+        display.finish()
+
+
+@pytest.mark.usefixtures("manual_live_refresh")
 @pytest.mark.parametrize("width", [40, 80])
 def test_live_layout_preserves_counts_and_estimates_on_narrow_terminals(width):
     stream = Terminal()
@@ -262,7 +306,7 @@ def test_live_layout_preserves_counts_and_estimates_on_narrow_terminals(width):
         assert "2/3" in text
         assert "14/28 cuts" in text
         assert "~0:42 remaining" in text
-        assert "estimated" in text
+        assert "% estimated" not in text
         assert "100%" not in text
         assert all(line.startswith("  ") for line in text.splitlines() if line.strip())
         assert all(cell_len(line) <= width for line in text.splitlines())

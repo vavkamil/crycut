@@ -213,10 +213,11 @@ def main(argv: list[str] | None = None) -> int:
             )
         else:
             rows.append(("Job", args.monitor))
-        out.print(fields(rows))
-        out.print()
-        out.print(fields([("Log", os.path.relpath(path.resolve()))]))
-        out.print()
+        display.set_summary(
+            rows,
+            copies=args.copies if sheet is not None else None,
+            log_path=os.path.relpath(path.resolve()),
+        )
 
         def emit(event: str, **details: Any) -> None:
             nonlocal job_id, submitting
@@ -270,9 +271,9 @@ def main(argv: list[str] | None = None) -> int:
             if isinstance(error, KeyboardInterrupt)
             else str(error)
         )
+        error_out = console(sys.stderr)
+        error_out.print()
         if connection_failed and isinstance(error, OSError):
-            error_out = console(sys.stderr)
-            error_out.print()
             notice(
                 "Cannot connect to the printer. Check power and Bluetooth.",
                 "error",
@@ -282,7 +283,7 @@ def main(argv: list[str] | None = None) -> int:
             notice(
                 f"Stopped: {detail}",
                 "warning" if isinstance(error, KeyboardInterrupt) else "error",
-                out=console(sys.stderr),
+                out=error_out,
             )
         if job_id is not None:
             recovery = f"uv run crycut monitor {job_id}"

@@ -225,7 +225,7 @@ def test_event_log_failure_does_not_hide_completed_job(
         == 0
     )
     output = capsys.readouterr()
-    assert "Completed (job 42)" in output.out
+    assert "Completed" in output.out
     assert "event log" in output.err.lower()
     assert "may still be running" not in output.err
     assert stream.closed

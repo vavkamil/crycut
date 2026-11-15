@@ -212,7 +212,7 @@ def test_terminal_resets_clock_and_redraws_both_rows_on_next_copy():
     try:
         with patch("crycut.progress.time.monotonic", return_value=100) as clock:
             display.show("progress", event)
-            assert "Copies:           1/3\n  Status:" in visible(stream.getvalue())
+            assert "Copies:           1/3\n\n  Status:" in visible(stream.getvalue())
             clock.return_value = 200
             display.show("progress", {**event, "copy_number": 2})
             assert "\033[1A" in stream.getvalue()
@@ -234,7 +234,7 @@ def test_terminal_resets_clock_and_redraws_both_rows_on_next_copy():
             display._tick()
             assert stream.getvalue() == before
             assert "Status:           [!] Paper near blade" in visible(before)
-            assert "Time remaining unknown" in visible(before)
+            assert "Time unknown" in visible(before)
     finally:
         display.finish()
 

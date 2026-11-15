@@ -58,7 +58,7 @@ def test_local_ticks_fill_each_sheet_share_without_waiting_for_another_poll(copi
             assert "100%" not in stream.getvalue()
             display.show("job", {"job-id": 42, "job-state": 9})
             assert percent(stream) == 100
-            assert "Completed (job 42)" in stream.getvalue()
+            assert "Completed 🎉" in stream.getvalue()
             before = stream.getvalue()
             clock.return_value += 1000
             display._tick()
@@ -148,13 +148,18 @@ def test_live_display_keeps_progress_below_status_and_clears_all_rows():
     try:
         display.show("progress", progress())
         text = visible(stream.getvalue())
-        assert "Copies:           1/3\n  Status:           Preparing" in text
-        assert text.index("Status:") < text.index("Time:") < text.index("Progress:")
-        assert "estimated" in text
+        assert (
+            "Copies:           1/3\n\n  Status:           Preparing | ~2:00 remaining"
+            in text
+        )
+        assert "Time:" not in text
+        assert text.index("Status:") < text.index("Progress:")
+        assert "remaining\n\n  Progress:" in text
+        assert "% estimated" not in text
         stream.seek(0)
         stream.truncate()
         display.show("progress", progress(copy_number=2))
-        assert stream.getvalue().count("\033[1A") == 3
+        assert stream.getvalue().count("\033[1A") == 4
         assert "Copies:           2/3" in visible(stream.getvalue())
     finally:
         display.finish()

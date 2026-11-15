@@ -25,6 +25,11 @@ THEME = Theme(
     {
         "heading": "bold cyan",
         "active": "bold cyan",
+        "stage": "bold",
+        "stage.yellow": "bold yellow",
+        "stage.magenta": "bold magenta",
+        "stage.cyan": "bold cyan",
+        "progress.track": "dim bright_black",
         "success": "green",
         "warning": "yellow",
         "error": "bold red",
