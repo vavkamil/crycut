@@ -4,6 +4,8 @@ import json
 import math
 import socket
 import sys
+from collections.abc import Generator
+from contextlib import contextmanager
 
 from ..arguments import ArgumentParser
 from ..configuration import load_printer
@@ -100,6 +102,22 @@ def structured_status(status: JsonObject) -> JsonObject:
     }
 
 
+@contextmanager
+def reading_status() -> Generator[None]:
+    """Show a temporary message only when both output streams are terminals."""
+    stream = sys.stderr
+    interactive = sys.stdout.isatty() and stream.isatty()
+    if interactive:
+        stream.write("\nReading printer status…\n\n")
+        stream.flush()
+    try:
+        yield
+    finally:
+        if interactive:
+            stream.write("\r\033[2K" + "\033[1A\r\033[2K" * 3)
+            stream.flush()
+
+
 def main(argv: list[str] | None = None) -> int:
     """Connect to the selected printer and display its status."""
     parser = ArgumentParser(prog="crycut status", description=__doc__)
@@ -120,17 +138,18 @@ def main(argv: list[str] | None = None) -> int:
         config = load_printer(PRINTER_CONFIG)
         address, name = config.address, config.name
         connecting = True
-        channel = resolve_rfcomm_channel(address, args.channel, args.timeout)
-        with socket.socket(
-            socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM
-        ) as connection:
-            connection.settimeout(args.timeout)
-            connection.connect((address, channel))
-            client = Client(connection, args.timeout)
-            client.handshake()
-            status = read_status(client, address, name)
-            status["ribbon_capacity"] = config.ribbon_capacity
-            status["rfcomm_channel"] = channel
+        with reading_status():
+            channel = resolve_rfcomm_channel(address, args.channel, args.timeout)
+            with socket.socket(
+                socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM
+            ) as connection:
+                connection.settimeout(args.timeout)
+                connection.connect((address, channel))
+                client = Client(connection, args.timeout)
+                client.handshake()
+                status = read_status(client, address, name)
+                status["ribbon_capacity"] = config.ribbon_capacity
+                status["rfcomm_channel"] = channel
         print(
             json.dumps(structured_status(status), indent=2)
             if args.json
