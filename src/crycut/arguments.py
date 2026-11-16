@@ -23,7 +23,7 @@ class ArgumentParser(argparse.ArgumentParser):
 
     def error(self, message: str) -> NoReturn:
         """Report an argument error with the relevant help command."""
-        self.exit(2, f"\nError: {message}\n\nHelp: uv run {self.prog} --help\n\n")
+        self.exit(2, f"Error: {message}\n\nHelp: uv run {self.prog} --help")
 
     def print_help(self, file: Any = None) -> None:
         """Print help with spacing consistent with normal CLI output."""
@@ -64,7 +64,8 @@ class ArgumentParser(argparse.ArgumentParser):
     def exit(self, status: int = 0, message: str | None = None) -> NoReturn:
         """Report failures consistently while preserving argparse exit codes."""
         if message:
-            notice(
-                message.strip(), "error" if status else "info", out=console(sys.stderr)
-            )
+            out = console(sys.stderr)
+            out.print()
+            notice(message.strip(), "error" if status else "info", out=out)
+            out.print()
         raise SystemExit(status)
