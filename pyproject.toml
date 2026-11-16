@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==83.0.0"]
+requires = ["setuptools==84.2.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -12,12 +12,12 @@ license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = [
     "contourpy==1.3.3",     # Trace shape boundaries into cut outlines
-    "cryptography==46.0.5", # AES encryption for printer communication
+    "cryptography==50.0.2", # AES encryption for printer communication
     "defusedxml==0.7.1",    # Reject XML entities in SVG artwork
-    "numpy==2.3.5",         # Pixel masks and cut-path geometry calculations
-    "pillow==12.1.1",       # Image loading, rendering, JPEG export, and previews
+    "numpy==2.4.6",         # Pixel masks and cut-path geometry calculations
+    "pillow==13.0.0",       # Image loading, rendering, JPEG export, and previews
     "rich==15.0.0",         # Terminal layouts, colors, and live progress
-    "scipy==1.16.3",        # Shape detection, hole filling, and border expansion
+    "scipy==1.17.1",        # Shape detection, hole filling, and border expansion
 ]
 
 [project.scripts]
@@ -31,13 +31,13 @@ include-package-data = false
 
 [dependency-groups]
 test = [
-    "pytest==9.1.1", # Test runner; existing unittest tests remain supported
+    "pytest==9.2.0", # Test runner; existing unittest tests remain supported
 ]
 lint = [
-    "ruff==0.17.1",  # Python linter and formatter
+    "ruff==0.17.3",  # Python linter and formatter
 ]
 typecheck = [
-    "ty==0.0.89",    # Python type checker
+    "ty==0.0.95",    # Python type checker
 ]
 dev = [
     { include-group = "test" },
