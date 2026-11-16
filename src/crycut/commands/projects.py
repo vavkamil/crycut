@@ -41,7 +41,13 @@ def list_projects(argv: list[str]) -> int:
         heading("Projects", out=out)
         notice("No projects yet.", out=out)
         out.print()
-        command_hints([("Create one", "uv run crycut new NAME")], out=out)
+        command_hints(
+            [
+                ("New (svg)", "uv run crycut new NAME"),
+                ("New (png)", "uv run crycut new NAME --png"),
+            ],
+            out=out,
+        )
         out.print()
     else:
         labels = {
@@ -74,7 +80,8 @@ def list_projects(argv: list[str]) -> int:
         out.print()
         command_hints(
             [
-                ("New", "uv run crycut new NAME"),
+                ("New (svg)", "uv run crycut new NAME"),
+                ("New (png)", "uv run crycut new NAME --png"),
                 ("Inspect", "uv run crycut print NAME"),
                 ("Export", "uv run crycut export NAME"),
             ],
