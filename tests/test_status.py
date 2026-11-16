@@ -42,6 +42,76 @@ def client_with_counters(reply, alerts=":0:0", ribbon_count=31):
     )
 
 
+@pytest.mark.parametrize("timeout", ["0", "-1", "nan", "inf"])
+def test_invalid_timeout_never_attempts_connection(timeout, monkeypatch, capsys):
+    lookup = Mock()
+    monkeypatch.setattr(command, "resolve_rfcomm_channel", lookup)
+    with pytest.raises(SystemExit) as stopped:
+        command.main(["--timeout", timeout])
+    assert stopped.value.code == 2
+    assert "Timeout must be finite and positive" in capsys.readouterr().err
+    lookup.assert_not_called()
+
+
+def test_python_without_bluetooth_reports_actionable_error(monkeypatch, capsys):
+    monkeypatch.delattr(command.socket, "AF_BLUETOOTH", raising=False)
+    lookup = Mock()
+    monkeypatch.setattr(command, "resolve_rfcomm_channel", lookup)
+    with pytest.raises(SystemExit) as stopped:
+        command.main([])
+    assert stopped.value.code == 2
+    assert "lacks Bluetooth support" in capsys.readouterr().err
+    lookup.assert_not_called()
+
+
+@pytest.mark.parametrize("as_json", [False, True])
+def test_unreachable_printer_reports_failure_in_requested_format(
+    as_json, monkeypatch, capsys, printer_config
+):
+    monkeypatch.setattr(command, "PRINTER_CONFIG", printer_config)
+    monkeypatch.setattr(command, "resolve_rfcomm_channel", Mock(return_value=2))
+    connection = MagicMock()
+    connection.__enter__.return_value.connect.side_effect = OSError(
+        "connection refused"
+    )
+    factory = Mock(return_value=connection)
+    monkeypatch.setattr(command.socket, "socket", factory)
+    client = Mock()
+    monkeypatch.setattr(command, "Client", client)
+    assert command.main(["--json"] if as_json else []) == 1
+    output = capsys.readouterr()
+    if as_json:
+        assert json.loads(output.out) == {"error": "connection refused"}
+        assert output.err == ""
+    else:
+        assert "Connection:" in output.err and "Unavailable" in output.err
+        assert "Check that the printer is on and Bluetooth is enabled" in output.err
+        assert "AA:BB:CC:DD:EE:FF" in output.err
+    client.assert_not_called()
+    factory.assert_called_once()
+    connection.__exit__.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "seconds,expected", [(0, "Never"), (90, "90 seconds"), (-1, "Unknown (-1)")]
+)
+def test_status_summary_handles_auto_off_variants_and_missing_identity(
+    seconds, expected
+):
+    status = read_status(client_with_counters({"result": [{}]}), "address", "printer")
+    status.update(
+        auto_off_seconds=seconds,
+        hardware_revision=None,
+        bluetooth_firmware=None,
+        ribbon_capacity=None,
+    )
+    output = command.display(status)
+    assert f"Auto-off:         {expected}" in output
+    assert "Model:            CSTP401\n" in output
+    assert "Bluetooth FW:     Unavailable" in output
+    assert "Prints left:      31\n" in output
+
+
 @pytest.mark.parametrize("as_json", [False, True])
 @pytest.mark.parametrize("interactive", [False, True])
 def test_status_displays_completed_sticker_sheets(

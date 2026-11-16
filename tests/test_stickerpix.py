@@ -2,6 +2,8 @@
 
 import unittest
 
+import pytest
+
 from crycut.protocol import aes, derive_exchange, frame
 from crycut.transport import Client
 
@@ -11,6 +13,39 @@ GREETING = bytes.fromhex(
     "320000004536393639443344343935424533324334323731343535333044454332363243"
     "347e"
 )
+
+
+def test_frame_payload_limit_accepts_boundary_and_rejects_overflow():
+    payload = b"x" * 1023
+    packet = frame(6, payload)
+    assert packet[20:-2] == payload
+    assert int.from_bytes(packet[18:20], "little") & 1023 == 1023
+    with pytest.raises(ValueError, match="single-frame limit"):
+        frame(6, payload + b"x")
+
+
+@pytest.mark.parametrize("body", [b"", GREETING[20:-3], GREETING[20:-2] + b"0"])
+def test_exchange_rejects_wrong_body_length(body):
+    with pytest.raises(ValueError, match="36-byte"):
+        derive_exchange(body)
+
+
+@pytest.mark.parametrize(
+    ("generator", "modulus", "peer"),
+    [(3, 17, 4), (2, 4, 2), (2, 17, 0), (2, 17, 17)],
+)
+def test_exchange_rejects_invalid_parameters_before_randomness(
+    generator, modulus, peer, monkeypatch
+):
+    from unittest.mock import Mock
+
+    random = Mock()
+    monkeypatch.setattr("crycut.protocol.secrets.randbelow", random)
+    body = f"{generator:X}".encode().ljust(4, b"\0")
+    body += f"{modulus:016X}{peer:016X}".encode()
+    with pytest.raises(ValueError, match="DH parameters"):
+        derive_exchange(body)
+    random.assert_not_called()
 
 
 class Stream:
