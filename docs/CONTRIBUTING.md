@@ -20,6 +20,29 @@ The tests run offline and do not submit printer jobs. They use temporary
 projects, simulated printer connections, and the bundled reference files.
 A focused test can be run with `uv run pytest tests/test_orientation.py`.
 
+## Coverage
+
+Run the full suite with coverage, as CI does:
+
+```bash
+uv run pytest --cov
+```
+
+Coverage includes all modules in `src/crycut`, including modules that tests never
+import. The terminal report shows missing lines and branches. CI and local
+coverage runs require at least 98% combined line and branch coverage across the
+package. The minimum applies to the total, not individual modules.
+
+To also generate a browsable report:
+
+```bash
+uv run pytest --cov --cov-report=term-missing --cov-report=html
+```
+
+Open `htmlcov/index.html` to inspect uncovered code. Coverage data and generated
+reports are ignored by Git. Use the report to identify missing behavior checks;
+executing a line alone does not establish that its behavior is correct.
+
 ## Code structure
 
 All implementation modules are in [src/crycut/](../src/crycut/).

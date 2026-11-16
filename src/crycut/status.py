@@ -93,6 +93,18 @@ def completed_count(counters: Any, key: str) -> int | None:
     return count if type(count) is int and count >= 0 else None
 
 
+def ribbon_count(reply: JsonObject) -> int:
+    """Read the remaining-print counter; negative values mean unavailable."""
+    entry = values(reply, 1)[0]
+    ribbon = entry.get("ribbon-info") if isinstance(entry, dict) else None
+    if not isinstance(ribbon, list) or len(ribbon) != 6:
+        raise ValueError("Unexpected ribbon-info response")
+    count = ribbon[2]
+    if type(count) not in (int, str):
+        raise ValueError("Unexpected ribbon count")
+    return int(count)
+
+
 def read_status(client: Client, address: str, name: str) -> JsonObject:
     """Read printer status, allowing unavailable extra identity and usage data."""
     state, substate, alerts = values(
@@ -107,10 +119,7 @@ def read_status(client: Client, address: str, name: str) -> JsonObject:
         ),
         4,
     )
-    ribbon = values(client.get_properties(["ribbon-info"], 3), 1)[0]["ribbon-info"]
-    if not isinstance(ribbon, list) or len(ribbon) != 6:
-        raise ValueError("Unexpected ribbon-info response")
-    count = int(ribbon[2])
+    count = ribbon_count(client.get_properties(["ribbon-info"], 3))
     counters = optional_property(client, "big-data", 4)
     device = optional_property(client, "device-info", 5)
     if not isinstance(device, dict):

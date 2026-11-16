@@ -50,6 +50,8 @@ def test_discovery_uses_bounded_classic_scan_and_known_devices(monkeypatch):
     ("result", "message"),
     [
         ("No default controller available", "No Bluetooth adapter"),
+        ("Waiting to connect to bluetoothd...", "No Bluetooth adapter"),
+        ("org.bluez.Error.NotReady", "Bluetooth is off"),
         ("Controller 00:11:22:33:44:55 notebook\n Powered: no\n", "Bluetooth is off"),
         ("Failed to connect to bluetoothd", "Bluetooth discovery failed"),
     ],
@@ -60,6 +62,36 @@ def test_adapter_errors_fail_before_scanning(monkeypatch, result, message):
     with pytest.raises(ConnectionError, match=message):
         discovery.discover_printers()
     run.assert_called_once()
+
+
+@pytest.mark.parametrize("timeout", [0, 61, -1, 1.5, True, None])
+def test_invalid_timeout_does_not_start_discovery(monkeypatch, timeout):
+    run = Mock(side_effect=AssertionError("invalid timeout reached BlueZ"))
+    monkeypatch.setattr(discovery.subprocess, "run", run)
+    with pytest.raises(ValueError, match="Discovery timeout must be 1-60 seconds"):
+        discovery.discover_printers(timeout)
+    run.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        subprocess.CompletedProcess([], 1, stdout="", stderr="scan failed"),
+        response("Invalid command: scan bredr"),
+    ],
+)
+def test_failed_scan_does_not_return_only_cached_printers(monkeypatch, failure):
+    run = Mock(
+        side_effect=[
+            response("Controller 00:11:22:33:44:55 notebook\n Powered: yes\n"),
+            response("Device AA:BB:CC:DD:EE:FF StickerPix paired"),
+            failure,
+        ]
+    )
+    monkeypatch.setattr(discovery.subprocess, "run", run)
+    with pytest.raises(ConnectionError, match="Bluetooth discovery failed"):
+        discovery.discover_printers()
+    assert run.call_count == 3
 
 
 @pytest.mark.parametrize(

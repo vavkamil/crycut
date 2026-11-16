@@ -18,7 +18,7 @@ from rich.text import Text
 from .jobs import JOB_STATES
 from .models import JsonObject
 from .status import describe_alerts
-from .ui import LABEL_WIDTH, console, field_value, fields, indent_text
+from .ui import LABEL_WIDTH, console, field_value, fields, indent_text, indented
 
 
 def duration(seconds: float) -> str:
@@ -37,6 +37,11 @@ def progress_bar(label: str, fraction: float) -> str:
 
 def message(event: str, details: JsonObject, *, cut_total: int | None = None) -> str:
     """Format one printer event for terminal output."""
+    if event == "cartridge_warning":
+        count = details["prints_left"]
+        if count is None:
+            return "Cartridge prints left could not be determined."
+        return f"Cartridge reports {count} {'print' if count == 1 else 'prints'} left."
     if event == "connecting":
         return f"{'Status:':<{LABEL_WIDTH + 2}}Connecting…"
     if event == "connected":
@@ -129,6 +134,7 @@ class ProgressDisplay:
         self._overall_fraction: float | None = None
         self._summary: list[tuple[str, object]] = []
         self._log_path: str | None = None
+        self._cartridge_warning: Text | None = None
 
     def set_summary(
         self,
@@ -154,6 +160,15 @@ class ProgressDisplay:
     def show(self, event: str, details: JsonObject) -> None:
         """Show an event and start local countdown updates when appropriate."""
         with self._lock:
+            if event == "cartridge_warning":
+                self._cartridge_warning = Text.assemble(
+                    ("[!] ", "warning"),
+                    field_value("Prints left", message(event, details)),
+                )
+                if not self.interactive:
+                    self.console.print(indented(self._cartridge_warning))
+                    self.console.print()
+                return
             self._details = dict(details)
             copies = details.get("copies", self._copies)
             copy_number = details.get("copy_number", self._copy_number)
@@ -352,6 +367,13 @@ class ProgressDisplay:
             layout.renderables.extend([fields(summary), Text("")])
         if self._log_path is not None:
             layout.renderables.extend([fields([("Log", self._log_path)]), Text("")])
+        if self._cartridge_warning is not None:
+            layout.renderables.extend(
+                [
+                    indented(self._cartridge_warning),
+                    Text(""),
+                ]
+            )
         layout.renderables.append(fields(rows))
         if self._overall_fraction is not None and event in (
             "uploaded",

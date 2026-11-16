@@ -31,7 +31,8 @@ include-package-data = false
 
 [dependency-groups]
 test = [
-    "pytest==9.2.0", # Test runner; existing unittest tests remain supported
+    "pytest-cov==7.1.0", # Test coverage reporting
+    "pytest==9.2.0",     # Test runner; existing unittest tests remain supported
 ]
 lint = [
     "ruff==0.17.3",  # Python linter and formatter
@@ -51,6 +52,15 @@ exclude-newer = "7 days"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["src/crycut"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 98
+show_missing = true
+precision = 2
 
 [tool.ty.rules]
 blanket-ignore-comment = "warn"

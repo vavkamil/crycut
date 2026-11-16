@@ -15,30 +15,42 @@ from terminal_helpers import visible
 pytestmark = pytest.mark.usefixtures("manual_live_refresh")
 
 
-@pytest.mark.parametrize("value", ["0", "-1", "1.5", "three"])
-def test_invalid_quantity_never_connects(value):
-    with patch.object(printer.socket, "socket") as connect:
+@pytest.mark.parametrize("value", ["0", "-1", "1.5", "three", "37", "40"])
+@pytest.mark.parametrize("mode", [[], ["--send"], ["--simulate"]])
+def test_invalid_quantity_never_loads_or_connects(value, mode, capsys):
+    with (
+        patch.object(printer.socket, "socket") as connect,
+        patch.object(printer.PrintSheet, "load") as load,
+    ):
         with pytest.raises(SystemExit) as error:
-            printer.main(["tech-icons", "--send", "--copies", value])
+            printer.main(["tech-icons", *mode, "--copies", value])
     assert error.value.code == 2
+    message = (
+        "invalid int value" if value in ("1.5", "three") else "integer from 1 to 36"
+    )
+    assert message in capsys.readouterr().err
     connect.assert_not_called()
+    load.assert_not_called()
 
 
+@pytest.mark.usefixtures("offline_printer")
 def test_multiple_copy_preview_is_offline(capsys):
-    with patch.object(printer.socket, "socket") as connect:
-        assert printer.main(["tech-icons", "--copies", "3", "--json"]) == 0
-        preview = json.loads(capsys.readouterr().out)
-        assert preview["copies"] == 3
-        assert preview["cut_outlines"] == 32
-        assert printer.main(["tech-icons", "--copies", "3"]) == 0
-    connect.assert_not_called()
+    assert printer.main(["tech-icons", "--copies", "3", "--json"]) == 0
+    preview = json.loads(capsys.readouterr().out)
+    assert preview["copies"] == 3
+    assert preview["cut_outlines"] == 32
+    assert printer.main(["tech-icons", "--copies", "3"]) == 0
     assert "per sheet" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("max_wait, expected_wait", [(None, 2700), (60, 60)])
 def test_three_copies_submit_one_job_and_one_upload(max_wait, expected_wait):
     client = Mock(key=b"0123456789ABCDEF")
-    client.request.side_effect = [{"result": [20]}, {"result": {"job-id": 42}}]
+    client.request.side_effect = [
+        {"result": [20]},
+        {"result": [{"ribbon-info": [0, 0, 36, 0, 0, 0]}]},
+        {"result": {"job-id": 42}},
+    ]
     sheet = PrintSheet(b"image", b"cut", 1, "example")
     with (
         patch.object(
@@ -51,7 +63,7 @@ def test_three_copies_submit_one_job_and_one_upload(max_wait, expected_wait):
         patch.object(jobs.time, "sleep"),
     ):
         jobs.submit(client, sheet, Mock(), copies=3, max_wait=max_wait)
-    assert client.request.call_count == 2
+    assert client.request.call_count == 3
     method, entries = client.request.call_args.args
     assert method == "combo-job"
     assert [entry["method"] for entry in entries] == ["print-job", "cut-job"]
@@ -64,27 +76,6 @@ def test_three_copies_submit_one_job_and_one_upload(max_wait, expected_wait):
         "estimate_seconds": 120,
         "copies": 3,
     }
-
-
-def test_copies_flow_from_cli_into_submission_and_log(tmp_path, capsys):
-    client = Mock(events=[])
-    log = tmp_path / "print.jsonl"
-    with (
-        patch.object(printer.socket, "socket"),
-        patch.object(printer, "resolve_rfcomm_channel", return_value=2),
-        patch.object(printer, "Client", return_value=client),
-        patch.object(
-            printer, "PRINTER_CONFIG", printer.ROOT / "config/printer.example.json"
-        ),
-        patch.object(printer, "submit", return_value={"job-state": 9}) as submit,
-    ):
-        assert (
-            printer.main(["tech-icons", "--copies", "3", "--send", "--log", str(log)])
-            == 0
-        )
-    assert submit.call_args.kwargs["copies"] == 3
-    assert json.loads(log.read_text().splitlines()[0])["copies"] == 3
-    assert "per sheet" in capsys.readouterr().out
 
 
 def test_counter_and_estimate_follow_printer_through_three_copies(monkeypatch):

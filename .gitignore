@@ -1,6 +1,10 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
 .venv/
 .cache/
 .ruff_cache/
@@ -9,3 +13,8 @@ dist/
 *.egg-info/
 logs/
 /config/printer.json
+
+# Keep personal projects local; explicitly allow bundled examples.
+/projects/*
+!/projects/tech-icons/
+!/projects/wordmarks/

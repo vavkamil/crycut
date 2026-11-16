@@ -23,7 +23,7 @@ from ..jobs import submit
 from ..paths import PRINTER_CONFIG, ROOT
 from ..progress import ProgressDisplay, duration
 from ..projects import command_argument, resolve
-from ..sheets import PrintSheet
+from ..sheets import MAX_COPIES, PrintSheet
 from ..simulation import PlaybackClock, simulate
 from ..transport import Client, resolve_rfcomm_channel
 from ..ui import command_hints, console, fields, heading, notice
@@ -54,7 +54,9 @@ def _parse_args(argv: list[str] | None) -> Namespace:
         help="Simulation speed (default: 10; use 1 for real time)",
     )
     parser.add_argument(
-        "--copies", type=int, help="Number of identical sheets (default: 1)"
+        "--copies",
+        type=int,
+        help=f"Number of identical sheets, 1-{MAX_COPIES} (default: 1)",
     )
     parser.add_argument(
         "--channel", type=int, help="Override RFCOMM channel (default: service lookup)"
@@ -93,8 +95,8 @@ def _parse_args(argv: list[str] | None) -> Namespace:
             "--simulate cannot be used with --json, --log, --channel, or --max-wait"
         )
     if args.copies is not None:
-        if args.copies < 1:
-            parser.error("Copies must be a positive integer")
+        if not 1 <= args.copies <= MAX_COPIES:
+            parser.error(f"Copies must be an integer from 1 to {MAX_COPIES}")
     else:
         args.copies = 1
     if args.json and args.send:

@@ -1,6 +1,7 @@
 """Create projects and list their export status."""
 
 import json
+import os
 from pathlib import Path
 
 from rich.text import Text
@@ -40,7 +41,13 @@ def list_projects(argv: list[str]) -> int:
         heading("Projects", out=out)
         notice("No projects yet.", out=out)
         out.print()
-        command_hints([("Create one", "uv run crycut new NAME")], out=out)
+        command_hints(
+            [
+                ("New (svg)", "uv run crycut new NAME"),
+                ("New (png)", "uv run crycut new NAME --png"),
+            ],
+            out=out,
+        )
         out.print()
     else:
         labels = {
@@ -73,6 +80,8 @@ def list_projects(argv: list[str]) -> int:
         out.print()
         command_hints(
             [
+                ("New (svg)", "uv run crycut new NAME"),
+                ("New (png)", "uv run crycut new NAME --png"),
                 ("Inspect", "uv run crycut print NAME"),
                 ("Export", "uv run crycut export NAME"),
             ],
@@ -105,9 +114,16 @@ def new(argv: list[str]) -> int:
         new_parser.exit(1, f"Cannot create project: {error}\n")
     out = console()
     heading("New project", out=out)
-    notice(f"Created {path}", "success", out=out)
+    notice(f"Created {os.path.relpath(path)}", "success", out=out)
     out.print()
-    out.print(fields([("Edit", str(source_path(path)))]))
+    out.print(
+        fields(
+            [
+                ("Project", os.path.relpath(path)),
+                ("Edit", os.path.relpath(source_path(path))),
+            ]
+        )
+    )
     command_hints([("Export", f"uv run crycut export {args.name}")], out=out)
     out.print()
     return 0

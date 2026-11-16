@@ -19,6 +19,7 @@ from .protocol import aes, frame
 from .timing import estimate
 
 CHUNK_BYTES = 892
+MAX_COPIES = 36
 
 
 class StaleDesignError(ValueError):
@@ -92,8 +93,8 @@ class PrintSheet:
 
     def parameters(self, copies: int = 1) -> list[JsonObject]:
         """Build one combo job for the requested number of identical sheets."""
-        if type(copies) is not int or copies < 1:
-            raise ValueError("Copies must be a positive integer")
+        if type(copies) is not int or not 1 <= copies <= MAX_COPIES:
+            raise ValueError(f"Copies must be an integer from 1 to {MAX_COPIES}")
         result = []
         stem = "sheet_" + hashlib.sha256(self.data).hexdigest()[:12]
         for method, extension, format_code, content in [

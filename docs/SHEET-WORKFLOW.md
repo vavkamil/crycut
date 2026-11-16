@@ -167,10 +167,17 @@ uv run crycut print my-sheet --copies 3 --send
 
 The sender checks source and output checksums, JPEG dimensions, the placement
 profile, and closed cut geometry before connecting. `--copies` defaults to one
-and accepts a positive integer. It also works in offline previews without
+and accepts an integer from 1 to 36. It also works in offline previews without
 `--send`. All copies share one job ID and one upload of the image and cut paths.
 The display shows upload percentage, printer stages, completed cuts, and
 estimated time per sheet.
+
+Before submission, the sender reads the cartridge's remaining-print count once.
+It warns when three or fewer prints remain, when the requested copies exceed
+the count, or when the count is unavailable. These warnings stay visible during
+printing and are saved in the job log; they do not require confirmation or block
+submission. The cartridge count is not refreshed during printing or saved in
+printer configuration.
 
 The countdown updates locally once per second; status is polled every two seconds
 by default. Estimates do not determine completion. Reported pauses suspend the
@@ -211,6 +218,8 @@ Playback defaults to 10× speed; `--speed 1` runs in real time. The simulation u
 the same display as real printing, with modeled stages and timing based on the
 selected sheet. Multiple copies include a paper-removal pause that clears
 automatically after 30 simulated seconds.
+The simulated cartridge reports 35 prints left; `--copies 36` demonstrates the
+cartridge warning while continuing through all requested copies.
 
 Simulation requires no printer setup, makes no Bluetooth connection, and writes
 no files. Use `--simulate` on its own, without `--send`. Ctrl+C ends the demo.

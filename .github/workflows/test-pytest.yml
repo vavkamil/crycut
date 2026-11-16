@@ -51,6 +51,6 @@ jobs:
         run: |
           uv sync --locked --no-default-groups --group test
 
-      - name: Run unit and functional tests
+      - name: Run unit and functional tests with coverage
         run: |
-          uv run --no-sync pytest
+          uv run --no-sync pytest --cov

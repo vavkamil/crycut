@@ -1,7 +1,8 @@
 """CLI intent, help aliases, and diagnostics must not submit accidental jobs."""
 
+import json
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 
@@ -95,21 +96,118 @@ def test_interrupted_print_leaves_job_running_without_resubmitting(
     connection.__enter__.return_value.connect.assert_called_once()
 
 
+@pytest.mark.parametrize("failure", [ConnectionError, TimeoutError, KeyboardInterrupt])
+def test_unconfirmed_submission_warns_without_retrying_or_uploading(
+    failure, tmp_path, monkeypatch, capsys, printer_config
+):
+    monkeypatch.setattr(printer, "PRINTER_CONFIG", printer_config)
+    connection = MagicMock()
+    factory = Mock(return_value=connection)
+    monkeypatch.setattr(printer.socket, "socket", factory)
+    lookup = Mock(return_value=2)
+    monkeypatch.setattr(printer, "resolve_rfcomm_channel", lookup)
+    client = Mock(key=b"0123456789ABCDEF", events=[])
+    client.request.side_effect = [
+        {"result": [20]},
+        {"result": [{"ribbon-info": [0, 0, 36, 0, 0, 0]}]},
+        failure("submission reply lost"),
+    ]
+    monkeypatch.setattr(printer, "Client", Mock(return_value=client))
+    log = tmp_path / "run.jsonl"
+
+    # Exercise real submission, failing after combo-job is sent but before an ID arrives.
+    result = printer.main(["wordmarks", "--send", "--log", str(log)])
+
+    assert result == (130 if failure is KeyboardInterrupt else 1)
+    output = capsys.readouterr()
+    assert (
+        "Submission outcome is unknown; check the printer before retrying."
+        in output.err
+    )
+    assert "Completed" not in output.out
+    assert [call.args[0] for call in client.request.call_args_list] == [
+        "get-prop",
+        "get-prop",
+        "combo-job",
+    ]
+    client.send.assert_not_called()
+    lookup.assert_called_once()
+    factory.assert_called_once()
+    connection.__exit__.assert_called_once()
+    records = [json.loads(line) for line in log.read_text().splitlines()]
+    assert [record["event"] for record in records] == [
+        "selected_sheet",
+        "connecting",
+        "connected",
+        "submitting",
+        "stopped",
+    ]
+    assert records[-1]["job_id"] is None
+    assert records[-1]["detail"] == (
+        "Monitoring interrupted"
+        if failure is KeyboardInterrupt
+        else "submission reply lost"
+    )
+    assert json.loads(log.with_suffix(".protocol.json").read_text()) == []
+
+
+@pytest.mark.parametrize(
+    "options,message",
+    [
+        (["--json"], "--json is for offline inspection"),
+        *[
+            (
+                [option, value],
+                "Timeouts and polling interval must be finite and positive",
+            )
+            for option in ("--timeout", "--interval", "--max-wait")
+            for value in ("0", "-1", "nan", "inf")
+        ],
+        (["--channel", "0"], "Use RFCOMM channel 1-30"),
+        (["--channel", "31"], "Use RFCOMM channel 1-30"),
+    ],
+)
+def test_invalid_print_options_fail_before_loading_or_connecting(
+    options, message, monkeypatch, capsys
+):
+    load = Mock(side_effect=AssertionError("loaded project before validating options"))
+    connect = Mock(side_effect=AssertionError("connected before validating options"))
+    monkeypatch.setattr(printer.PrintSheet, "load", load)
+    monkeypatch.setattr(printer.socket, "socket", connect)
+    monkeypatch.setattr(printer, "resolve_rfcomm_channel", connect)
+
+    with pytest.raises(SystemExit) as stopped:
+        cli.main(["print", "wordmarks", "--send", *options])
+
+    assert stopped.value.code == 2
+    assert message in capsys.readouterr().err
+    load.assert_not_called()
+    connect.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "args",
     [
         ["monitor", "42"],
         ["print", "--monitor", "42"],
         ["print", "tech-icons", "--send", "--monitor", "42"],
+        ["print", "wordmarks", "--simulate", "--monitor", "1"],
     ],
 )
-def test_removed_monitor_entry_points_never_connect(args, monkeypatch):
+def test_removed_monitor_entry_points_fail_before_loading_or_connecting(
+    args, monkeypatch, capsys
+):
     connect = Mock(side_effect=AssertionError("must reject removed commands first"))
+    load = Mock(side_effect=AssertionError("must validate arguments first"))
     monkeypatch.setattr(printer, "resolve_rfcomm_channel", connect)
+    monkeypatch.setattr(printer.PrintSheet, "load", load)
     with pytest.raises(SystemExit) as error:
         cli.main(args)
     assert error.value.code == 2
+    message = "Unknown command" if args[0] == "monitor" else "unrecognized arguments"
+    assert message in capsys.readouterr().err
     connect.assert_not_called()
+    load.assert_not_called()
 
 
 @pytest.mark.parametrize("option", ["--s", "--se", "--sen"])
