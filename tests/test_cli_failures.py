@@ -101,15 +101,23 @@ def test_interrupted_print_leaves_job_running_without_resubmitting(
         ["monitor", "42"],
         ["print", "--monitor", "42"],
         ["print", "tech-icons", "--send", "--monitor", "42"],
+        ["print", "wordmarks", "--simulate", "--monitor", "1"],
     ],
 )
-def test_removed_monitor_entry_points_never_connect(args, monkeypatch):
+def test_removed_monitor_entry_points_fail_before_loading_or_connecting(
+    args, monkeypatch, capsys
+):
     connect = Mock(side_effect=AssertionError("must reject removed commands first"))
+    load = Mock(side_effect=AssertionError("must validate arguments first"))
     monkeypatch.setattr(printer, "resolve_rfcomm_channel", connect)
+    monkeypatch.setattr(printer.PrintSheet, "load", load)
     with pytest.raises(SystemExit) as error:
         cli.main(args)
     assert error.value.code == 2
+    message = "Unknown command" if args[0] == "monitor" else "unrecognized arguments"
+    assert message in capsys.readouterr().err
     connect.assert_not_called()
+    load.assert_not_called()
 
 
 @pytest.mark.parametrize("option", ["--s", "--se", "--sen"])

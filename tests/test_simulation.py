@@ -164,7 +164,6 @@ def test_cli_simulation_is_offline_and_cleans_up(
     "options",
     [
         ["--simulate", "--send"],
-        ["--simulate", "--monitor", "1"],
         ["--simulate", "--json"],
         ["--simulate", "--log", "demo.jsonl"],
         ["--simulate", "--channel", "2"],

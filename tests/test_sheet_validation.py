@@ -19,6 +19,37 @@ def exported_project(tmp_path):
     return project
 
 
+@pytest.mark.parametrize("name", ["wordmarks", "tech-icons"])
+def test_bundled_manifest_has_no_duplicate_geometry(name):
+    path = ROOT / "projects" / name / "export.json"
+    manifest = json.loads(path.read_text())
+    assert path.stat().st_size < 1024
+    assert isinstance(manifest["profile"], str)
+    assert "paths_mm" not in manifest
+
+
+@pytest.mark.parametrize("filename", ["sheet-print.jpg", "sheet-cut.plt"])
+def test_modified_export_file_fails_checksum_validation(exported_project, filename):
+    path = exported_project / filename
+    path.write_bytes(path.read_bytes() + b"changed")
+    with pytest.raises(
+        ValueError, match=f"{filename} differs from the exported manifest"
+    ):
+        PrintSheet.load(exported_project)
+
+
+def test_matching_hash_does_not_allow_malformed_cut_commands(exported_project):
+    path = exported_project / "sheet-cut.plt"
+    content = path.read_bytes() + b" D1,1"
+    path.write_bytes(content)
+    manifest_path = exported_project / "export.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["files"][path.name] = hashlib.sha256(content).hexdigest()
+    manifest_path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="Unsupported PLT header or ending"):
+        PrintSheet.load(exported_project)
+
+
 @pytest.mark.parametrize("manifest", [[], None, {}, {"version": 2}])
 def test_invalid_manifest_is_rejected(exported_project, manifest):
     (exported_project / "export.json").write_text(json.dumps(manifest))

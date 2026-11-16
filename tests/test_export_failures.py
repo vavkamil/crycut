@@ -102,20 +102,21 @@ def test_different_artwork_cannot_replace_project_source(project, suffix, monkey
 
 def test_edit_after_render_cannot_be_overwritten(project, monkeypatch):
     source = project / "design.svg"
-    original = Path.read_bytes
-    reads = 0
-    edited = original(source) + b"\n<!-- edited while export is finishing -->\n"
+    before = snapshot(project)
+    edited = before["design.svg"] + b"\n<!-- edited while export is finishing -->\n"
+    mkdir = Path.mkdir
+    edits = []
 
-    def read(path):
-        nonlocal reads
-        data = original(path)
-        if path == source:
-            reads += 1
-            if reads == 2:  # Edit just after the post-render source comparison.
-                source.write_bytes(edited)
-        return data
+    def edit_before_install(path, *args, **kwargs):
+        result = mkdir(path, *args, **kwargs)
+        # This boundary follows rendering and its source comparison, but
+        # precedes installation. Avoid depending on the number of source reads.
+        if path == project:
+            source.write_bytes(edited)
+            edits.append(path)
+        return result
 
-    monkeypatch.setattr(Path, "read_bytes", read)
+    monkeypatch.setattr(Path, "mkdir", edit_before_install)
     with pytest.raises(ValueError, match="Design changed"):
         exporter.export(
             source,
@@ -124,7 +125,8 @@ def test_edit_after_render_cannot_be_overwritten(project, monkeypatch):
             "#ffffff",
             replace=True,
         )
-    assert original(source) == edited
+    assert edits == [project]
+    assert snapshot(project) == {**before, "design.svg": edited}
 
 
 @pytest.mark.parametrize("settings", [{"border_mm": "wide"}, {"border_color": None}])

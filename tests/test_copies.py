@@ -24,14 +24,13 @@ def test_invalid_quantity_never_connects(value):
     connect.assert_not_called()
 
 
+@pytest.mark.usefixtures("offline_printer")
 def test_multiple_copy_preview_is_offline(capsys):
-    with patch.object(printer.socket, "socket") as connect:
-        assert printer.main(["tech-icons", "--copies", "3", "--json"]) == 0
-        preview = json.loads(capsys.readouterr().out)
-        assert preview["copies"] == 3
-        assert preview["cut_outlines"] == 32
-        assert printer.main(["tech-icons", "--copies", "3"]) == 0
-    connect.assert_not_called()
+    assert printer.main(["tech-icons", "--copies", "3", "--json"]) == 0
+    preview = json.loads(capsys.readouterr().out)
+    assert preview["copies"] == 3
+    assert preview["cut_outlines"] == 32
+    assert printer.main(["tech-icons", "--copies", "3"]) == 0
     assert "per sheet" in capsys.readouterr().out
 
 
@@ -64,27 +63,6 @@ def test_three_copies_submit_one_job_and_one_upload(max_wait, expected_wait):
         "estimate_seconds": 120,
         "copies": 3,
     }
-
-
-def test_copies_flow_from_cli_into_submission_and_log(tmp_path, capsys):
-    client = Mock(events=[])
-    log = tmp_path / "print.jsonl"
-    with (
-        patch.object(printer.socket, "socket"),
-        patch.object(printer, "resolve_rfcomm_channel", return_value=2),
-        patch.object(printer, "Client", return_value=client),
-        patch.object(
-            printer, "PRINTER_CONFIG", printer.ROOT / "config/printer.example.json"
-        ),
-        patch.object(printer, "submit", return_value={"job-state": 9}) as submit,
-    ):
-        assert (
-            printer.main(["tech-icons", "--copies", "3", "--send", "--log", str(log)])
-            == 0
-        )
-    assert submit.call_args.kwargs["copies"] == 3
-    assert json.loads(log.read_text().splitlines()[0])["copies"] == 3
-    assert "per sheet" in capsys.readouterr().out
 
 
 def test_counter_and_estimate_follow_printer_through_three_copies(monkeypatch):

@@ -4,13 +4,34 @@ import json
 
 import pytest
 
-from crycut.paths import PLACEMENT_PROFILE
+from crycut.paths import PLACEMENT_PROFILE, ROOT
 from crycut.plt import make_paths_plt, read_paths
 
 
 @pytest.fixture
 def profile():
     return json.loads(PLACEMENT_PROFILE.read_text())
+
+
+def test_fixture_paths_count_excludes_final_parking_move(profile):
+    data = (ROOT / "tests/fixtures/print-cut/sheet-cut.plt").read_bytes()
+    assert len(read_paths(data, profile)) == 28
+
+
+@pytest.mark.parametrize(
+    "body,message",
+    [
+        ("U631,2060 D231,2060 D231,3866", "closed, non-collapsed"),
+        ("U1,1 D2,1 D2,2 D1,1", "beyond the design canvas"),
+        ("U631,2060 D231,2060 D631,2060", "closed, non-collapsed"),
+        ("U631,2060 Z231,2060 D631,2060", "Invalid PLT command format"),
+    ],
+    ids=["open", "out-of-bounds", "collapsed", "unsupported-command"],
+)
+def test_invalid_wire_paths_are_rejected(body, message, profile):
+    data = (profile["plt_header"] + " " + body + profile["plt_trailer"]).encode()
+    with pytest.raises(ValueError, match=message):
+        read_paths(data, profile)
 
 
 @pytest.mark.parametrize(

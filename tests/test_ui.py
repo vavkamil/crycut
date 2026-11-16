@@ -128,6 +128,7 @@ def test_numeric_fields_and_commands_have_selective_accents(monkeypatch):
     assert "\x1b[1;35m1.0.31" not in output
 
 
+@pytest.mark.usefixtures("offline_printer")
 @pytest.mark.parametrize("copies", [1, 3])
 @pytest.mark.parametrize("channel", [None, 2])
 @pytest.mark.parametrize("width", [40, 80])
