@@ -139,3 +139,35 @@ class TimingTests(unittest.TestCase):
         self.assertGreater(large["cut_seconds"], small["cut_seconds"])
         self.assertGreater(split["cut_seconds"], small["cut_seconds"])
         self.assertEqual(large["print_seconds"], small["print_seconds"])
+
+
+@pytest.mark.parametrize("cut", [b"", b"U0,0 U10,10", b"U0,0 D0,0", b"D10,10"])
+def test_cut_without_drawn_distance_has_no_estimate(cut):
+    with pytest.raises(ValueError, match="Cannot estimate an empty cut job"):
+        estimate(cut)
+
+
+def test_custom_timing_model_counts_only_drawn_distance(monkeypatch):
+    from crycut import timing
+
+    # A supplied model should work independently of the installed model file.
+    monkeypatch.setattr(timing, "TIMING_MODEL", None)
+    model = {
+        "name": "test-measurements",
+        "reference_print_seconds": [10, 14],
+        "reference_cut_seconds": [22, 26],
+        "reference_cut_length_units": 40,
+        "reference_contours": 2,
+        "assumed_contour_overhead_seconds": 2,
+        "cut_uncertainty_fraction": 0.25,
+    }
+    # Two 3-4-5 segments: pen-up travel and repeated points add no cut distance.
+    result = estimate(b"U0,0 D0,0 D3,4 D3,4 U100,100 D100,100 D103,104", model)
+
+    assert result["cut_length_units"] == 10
+    assert result["contours"] == 2
+    assert result["print_seconds"] == 12
+    assert result["cut_seconds"] == 9  # 4 seconds overhead + 5 seconds motion.
+    assert result["total_seconds"] == 21
+    assert result["rough_range_seconds"] == [17, 25]
+    assert result["model"] == "test-measurements"

@@ -2,10 +2,12 @@
 
 import json
 import shutil
+import subprocess
 from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+from PIL import Image, ImageDraw
 
 from crycut import exporter
 from crycut.commands import export as export_command
@@ -168,4 +170,123 @@ def test_failed_staged_write_leaves_no_temporary_project_files(project, monkeypa
             "#ffffff",
             replace=True,
         )
+    assert snapshot(project) == before
+
+
+@pytest.mark.parametrize("settings", [None, [], "invalid"])
+def test_non_object_saved_settings_fail_before_rendering(
+    project, settings, monkeypatch, capsys
+):
+    (project / "export.json").write_text(json.dumps(settings))
+    before = snapshot(project)
+    render = Mock(side_effect=AssertionError("rendered invalid settings"))
+    monkeypatch.setattr(exporter, "render_svg", render)
+
+    with pytest.raises(SystemExit) as error:
+        export_command.main([str(project)])
+
+    assert error.value.code == 1
+    assert "Invalid saved export settings" in capsys.readouterr().err
+    assert snapshot(project) == before
+    render.assert_not_called()
+
+
+@pytest.mark.parametrize("kind", ["unsupported", "linked-image", "wrong-png-ratio"])
+def test_unsupported_artwork_leaves_output_uncreated(tmp_path, monkeypatch, kind):
+    if kind == "unsupported":
+        source = tmp_path / "design.jpg"
+        Image.new("RGB", (96, 170)).save(source)
+        message = "Use SVG or transparent PNG input"
+    elif kind == "linked-image":
+        source = tmp_path / "design.svg"
+        source.write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+            'width="96mm" height="170mm" viewBox="0 0 96 170">'
+            '<image href="missing.png" width="10" height="10"/></svg>'
+        )
+        message = "embedded/linked images are unsupported"
+    else:
+        source = tmp_path / "design.png"
+        Image.new("RGBA", (100, 100)).save(source)
+        message = "PNG must represent the full 96:170 canvas"
+    before = source.read_bytes()
+    output = tmp_path / "export"
+    render = Mock(side_effect=AssertionError("rendered unsupported artwork"))
+    monkeypatch.setattr(exporter, "render_svg", render)
+    monkeypatch.setattr(exporter, "trace_alpha", render)
+
+    with pytest.raises(ValueError, match=message):
+        exporter.export(
+            source, output, json.loads(PLACEMENT_PROFILE.read_text()), "#ffffff"
+        )
+
+    assert source.read_bytes() == before
+    assert not output.exists()
+    render.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "failure,message",
+    [
+        (
+            subprocess.CompletedProcess([], 1, stdout="", stderr="invalid filter"),
+            "Inkscape rendering failed: invalid filter",
+        ),
+        (subprocess.TimeoutExpired("inkscape", 120), "timed out"),
+        (FileNotFoundError("inkscape is missing"), "inkscape is missing"),
+    ],
+)
+def test_renderer_failure_preserves_existing_export(
+    project, monkeypatch, capsys, failure, message
+):
+    run = Mock()
+    if isinstance(failure, BaseException):
+        run.side_effect = failure
+    else:
+        run.return_value = failure
+    monkeypatch.setattr("crycut.rendering.subprocess.run", run)
+    before = snapshot(project)
+
+    with pytest.raises(SystemExit) as error:
+        export_command.main([str(project)])
+
+    assert error.value.code == 1
+    assert message in capsys.readouterr().err
+    assert snapshot(project) == before
+    run.assert_called_once()
+
+
+@pytest.mark.parametrize("failure", ["wrong-dimensions", "edit-during-render"])
+def test_invalid_render_is_not_installed(project, monkeypatch, failure):
+    source = project / "design.svg"
+    before = snapshot(project)
+    edited = before["design.svg"] + b"\n<!-- edited during rendering -->\n"
+
+    def render(svg, destination, width, height):
+        if svg.name == "sheet-print.svg":
+            if failure == "wrong-dimensions":
+                width -= 1
+            else:
+                source.write_bytes(edited)
+        image = Image.new("RGBA", (width, height))
+        ImageDraw.Draw(image).rectangle((240, 240, 479, 479), fill="#ff0000")
+        image.save(destination)
+
+    monkeypatch.setattr(exporter, "render_svg", render)
+    message = (
+        "unexpected image dimensions"
+        if failure == "wrong-dimensions"
+        else "Design changed during export"
+    )
+    with pytest.raises(ValueError, match=message):
+        exporter.export(
+            source,
+            project,
+            json.loads(PLACEMENT_PROFILE.read_text()),
+            "#ffffff",
+            replace=True,
+        )
+
+    if failure == "edit-during-render":
+        before["design.svg"] = edited
     assert snapshot(project) == before
