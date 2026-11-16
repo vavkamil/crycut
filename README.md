@@ -8,7 +8,7 @@ and cut outlines, and follow the print progress from the terminal. Everything
 runs locally; no Cricut account or Design Space is required.
 
 <p align="center">
-  <img src="docs/screenshots/08_printing_cyan.png" alt="crycut printing a sticker sheet, showing the cyan printing stage and estimated time remaining">
+  <img src="docs/screenshots/06_printing_yellow.png" alt="crycut printing a sticker sheet, showing the yellow printing stage and estimated time remaining">
 </p>
 <p align="center">
   <a href="docs/screenshots/">View all screenshots</a>
