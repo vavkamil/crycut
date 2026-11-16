@@ -139,6 +139,10 @@ export geometry checks.
 For focused changes, run the relevant test file, for example
 `uv run pytest tests/test_monitor_failures.py`.
 
+Run `uv run pytest --cov` for the same coverage report as CI, including branch
+coverage and missing lines. See [Contributing](docs/CONTRIBUTING.md#coverage)
+for an HTML report.
+
 ## Prerequisites
 
 - Reference printer: firmware `1.0.31_0033`, Bluetooth firmware `BR8051A01B_fW_260519_r7997`.
