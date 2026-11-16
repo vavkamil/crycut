@@ -92,6 +92,39 @@ def test_unreachable_printer_reports_failure_in_requested_format(
     connection.__exit__.assert_called_once()
 
 
+@pytest.mark.parametrize("ribbon", [None, {}, [0] * 5, [0] * 7])
+@pytest.mark.parametrize("as_json", [False, True])
+def test_malformed_ribbon_reports_error_without_displaying_status(
+    ribbon, as_json, monkeypatch, capsys, printer_config
+):
+    client = client_with_counters({"result": [{}]})
+    replies = list(client.get_properties.side_effect)
+    replies[2] = {"result": [{"ribbon-info": ribbon}]}
+    client.get_properties.side_effect = replies
+    monkeypatch.setattr(command, "PRINTER_CONFIG", printer_config)
+    monkeypatch.setattr(command, "resolve_rfcomm_channel", Mock(return_value=2))
+    connection = MagicMock()
+    monkeypatch.setattr(command.socket, "socket", Mock(return_value=connection))
+    monkeypatch.setattr(command, "Client", Mock(return_value=client))
+
+    assert command.main(["--json"] if as_json else []) == 1
+
+    output = capsys.readouterr()
+    if as_json:
+        assert json.loads(output.out) == {"error": "Unexpected ribbon-info response"}
+        assert output.err == ""
+    else:
+        assert (
+            "Unable to read printer status: Unexpected ribbon-info response"
+            in output.err
+        )
+        assert "Prints left:" not in output.out
+        assert "Sheets printed:" not in output.out
+    assert client.get_properties.call_count == 3
+    client.get_properties.assert_called_with(["ribbon-info"], 3)
+    connection.__exit__.assert_called_once()
+
+
 @pytest.mark.parametrize(
     "seconds,expected", [(0, "Never"), (90, "90 seconds"), (-1, "Unknown (-1)")]
 )

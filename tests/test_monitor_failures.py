@@ -26,26 +26,31 @@ def client():
 
 @pytest.mark.parametrize("failure", [None, TimeoutError, ConnectionError, ValueError])
 @pytest.mark.parametrize("state", [7, 8, 9])
-def test_terminal_notification_during_status_query_wins(clock, failure, state):
+@pytest.mark.parametrize("query", ["get-job-info", "get-prop"])
+def test_terminal_notification_during_poll_wins(clock, failure, state, query):
     connection = client()
     completed = {"job-id": 30, "job-state": state}
 
     def request(method, params):
+        if method == query:
+            connection.notifications.append(
+                {"method": "event.combo-job-finish", "params": completed}
+            )
+            if failure:
+                raise failure("poll reply missing")
         if method == "get-job-info":
             return {"result": [{"job-id": 30, "job-state": 3}]}
-        connection.notifications.append(
-            {"method": "event.combo-job-finish", "params": completed}
-        )
-        if failure:
-            raise failure("status reply missing")
         return {"result": [40, 3030, ":0:0"]}
 
     connection.request.side_effect = request
     emitted = Mock()
-    assert jobs.monitor(connection, 30, emitted) == completed
+    assert jobs.monitor(connection, 30, emitted, max_wait=5) == completed
     emitted.assert_called_once_with("job", **completed)
     assert clock[0] == 0  # No extra sleep or poll after the completion event.
-    assert connection.request.call_count == 2
+    assert [call.args[0] for call in connection.request.call_args_list] == (
+        ["get-job-info"] if query == "get-job-info" else ["get-job-info", "get-prop"]
+    )
+    assert connection.timeout == 10
 
 
 @pytest.mark.parametrize(
