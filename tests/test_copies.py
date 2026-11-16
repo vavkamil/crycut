@@ -15,13 +15,22 @@ from terminal_helpers import visible
 pytestmark = pytest.mark.usefixtures("manual_live_refresh")
 
 
-@pytest.mark.parametrize("value", ["0", "-1", "1.5", "three"])
-def test_invalid_quantity_never_connects(value):
-    with patch.object(printer.socket, "socket") as connect:
+@pytest.mark.parametrize("value", ["0", "-1", "1.5", "three", "37", "40"])
+@pytest.mark.parametrize("mode", [[], ["--send"], ["--simulate"]])
+def test_invalid_quantity_never_loads_or_connects(value, mode, capsys):
+    with (
+        patch.object(printer.socket, "socket") as connect,
+        patch.object(printer.PrintSheet, "load") as load,
+    ):
         with pytest.raises(SystemExit) as error:
-            printer.main(["tech-icons", "--send", "--copies", value])
+            printer.main(["tech-icons", *mode, "--copies", value])
     assert error.value.code == 2
+    message = (
+        "invalid int value" if value in ("1.5", "three") else "integer from 1 to 36"
+    )
+    assert message in capsys.readouterr().err
     connect.assert_not_called()
+    load.assert_not_called()
 
 
 @pytest.mark.usefixtures("offline_printer")

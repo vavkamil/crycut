@@ -93,10 +93,10 @@ def test_matching_hash_does_not_allow_wrong_image_format_or_dimensions(
         PrintSheet.load(exported_project)
 
 
-@pytest.mark.parametrize("copies", [0, -1, True, 1.5, "2"])
+@pytest.mark.parametrize("copies", [0, -1, 37, 40, True, 1.5, "2"])
 def test_invalid_copies_cannot_be_encoded_in_job_parameters(copies):
     sheet = PrintSheet(b"image", b"cut", 1, "sheet")
-    with pytest.raises(ValueError, match="positive integer"):
+    with pytest.raises(ValueError, match="integer from 1 to 36"):
         sheet.parameters(copies)
 
 

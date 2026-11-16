@@ -167,7 +167,7 @@ uv run crycut print my-sheet --copies 3 --send
 
 The sender checks source and output checksums, JPEG dimensions, the placement
 profile, and closed cut geometry before connecting. `--copies` defaults to one
-and accepts a positive integer. It also works in offline previews without
+and accepts an integer from 1 to 36. It also works in offline previews without
 `--send`. All copies share one job ID and one upload of the image and cut paths.
 The display shows upload percentage, printer stages, completed cuts, and
 estimated time per sheet.
