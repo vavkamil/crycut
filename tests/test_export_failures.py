@@ -23,6 +23,29 @@ def snapshot(path):
     return {p.name: p.read_bytes() for p in path.iterdir() if p.is_file()}
 
 
+def test_svg_entities_report_cli_error_before_rendering(project, monkeypatch, capsys):
+    (project / "design.svg").write_text(
+        '<!DOCTYPE svg [<!ENTITY sample "harmless marker">]>'
+        '<svg xmlns="http://www.w3.org/2000/svg" '
+        'width="96mm" height="170mm" viewBox="0 0 96 170">'
+        "<text>&sample;</text></svg>"
+    )
+    before = snapshot(project)
+    render = Mock(side_effect=AssertionError("rendered before entity rejection"))
+    monkeypatch.setattr(exporter, "render_svg", render)
+
+    with pytest.raises(SystemExit) as error:
+        export_command.main([str(project)])
+
+    assert error.value.code == 1
+    stderr = capsys.readouterr().err
+    assert "Export failed:" in stderr
+    assert "EntitiesForbidden" in stderr
+    assert "Traceback" not in stderr
+    assert snapshot(project) == before
+    render.assert_not_called()
+
+
 @pytest.mark.parametrize("name", ["preview.png", "sheet-print.svg"])
 def test_generated_filename_cannot_overwrite_source(
     tmp_path, name, monkeypatch, capsys
