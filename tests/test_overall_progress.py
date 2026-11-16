@@ -30,7 +30,12 @@ def progress(copy_number=1, copies=3, remaining=120, **fields):
 
 
 def percent(stream):
-    return int(re.findall(r"Progress:[^\n]*?([0-9]+)%", visible(stream.getvalue()))[-1])
+    # Decode only the latest progress row, not every frame accumulated so far.
+    # Keep the full transcript for assertions about premature completion.
+    for line in reversed(stream.getvalue().splitlines()):
+        if match := re.search(r"Progress:.*?([0-9]+)%", visible(line)):
+            return int(match[1])
+    raise AssertionError("No progress percentage was rendered")
 
 
 @pytest.mark.parametrize("copies", [1, 2, 3])
@@ -130,7 +135,7 @@ def test_poll_corrections_never_move_overall_progress_backward():
     display.finish()
 
 
-def test_reconnected_monitor_without_estimate_does_not_invent_progress():
+def test_missing_sheet_estimate_does_not_invent_progress():
     stream = Terminal()
     display = ProgressDisplay(stream)
     display.show(
