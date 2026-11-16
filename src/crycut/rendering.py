@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Sequence
 from pathlib import Path
 
+from defusedxml.ElementTree import parse
 from PIL import Image, ImageDraw
 
 from .models import PlacementProfile, Point
@@ -23,7 +24,7 @@ def tag(name: str) -> str:
 
 def load_design(path: Path) -> ET.Element:
     """Read the supported design canvas and discard legacy cut guides."""
-    root = ET.parse(path).getroot()
+    root = parse(path).getroot()
     if (
         root.tag != tag("svg")
         or root.get("width") != "96mm"

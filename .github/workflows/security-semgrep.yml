@@ -1,0 +1,51 @@
+# https://github.com/semgrep/semgrep
+# https://hub.docker.com/r/semgrep/semgrep
+
+name: Security - Semgrep
+
+on:
+  # push:
+  #   branches:
+  #     - main
+  pull_request:
+    paths:
+      - ".github/workflows/security-semgrep.yml"
+      - ".semgrep/**"
+      - ".semgrepignore"
+      - "src/**"
+      - "tests/**"
+      - "config/**"
+      - "pyproject.toml"
+      - "uv.lock"
+  workflow_dispatch: {}
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    if: ${{ github.actor != 'dependabot[bot]' && github.actor != 'renovate[bot]' }}
+    permissions:
+      contents: read
+    container:
+      # Accepted risk: Semgrep's CI samples use the moving Semgrep image so
+      # scanner/runtime updates are picked up automatically outside Dependabot.
+      image: semgrep/semgrep:latest # zizmor: ignore[unpinned-images]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Perform Semgrep Analysis
+        run: >-
+          semgrep scan
+          --metrics=off
+          --error
+          --config p/python
+          .
