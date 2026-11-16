@@ -7,6 +7,8 @@ from .jobs import STAGES
 from .models import Emit
 from .sheets import PrintSheet
 
+SIMULATED_PRINTS_LEFT = 35
+
 # Approximate stage proportions from the November 14 reference prints.
 # Scale to the selected sheet's timing estimate, rather than replaying a log.
 PRINT_STAGES = (
@@ -56,6 +58,8 @@ def simulate(
     emit("connecting")
     clock.sleep(1)
     emit("connected")
+    if copies > SIMULATED_PRINTS_LEFT:
+        emit("cartridge_warning", prints_left=SIMULATED_PRINTS_LEFT)
     emit("submitting", copies=copies)
     clock.sleep(1)
     emit("accepted", job_id=1, copies=copies)

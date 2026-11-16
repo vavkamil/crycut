@@ -46,7 +46,11 @@ def test_multiple_copy_preview_is_offline(capsys):
 @pytest.mark.parametrize("max_wait, expected_wait", [(None, 2700), (60, 60)])
 def test_three_copies_submit_one_job_and_one_upload(max_wait, expected_wait):
     client = Mock(key=b"0123456789ABCDEF")
-    client.request.side_effect = [{"result": [20]}, {"result": {"job-id": 42}}]
+    client.request.side_effect = [
+        {"result": [20]},
+        {"result": [{"ribbon-info": [0, 0, 36, 0, 0, 0]}]},
+        {"result": {"job-id": 42}},
+    ]
     sheet = PrintSheet(b"image", b"cut", 1, "example")
     with (
         patch.object(
@@ -59,7 +63,7 @@ def test_three_copies_submit_one_job_and_one_upload(max_wait, expected_wait):
         patch.object(jobs.time, "sleep"),
     ):
         jobs.submit(client, sheet, Mock(), copies=3, max_wait=max_wait)
-    assert client.request.call_count == 2
+    assert client.request.call_count == 3
     method, entries = client.request.call_args.args
     assert method == "combo-job"
     assert [entry["method"] for entry in entries] == ["print-job", "cut-job"]

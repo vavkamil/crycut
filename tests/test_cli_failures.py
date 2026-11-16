@@ -107,7 +107,11 @@ def test_unconfirmed_submission_warns_without_retrying_or_uploading(
     lookup = Mock(return_value=2)
     monkeypatch.setattr(printer, "resolve_rfcomm_channel", lookup)
     client = Mock(key=b"0123456789ABCDEF", events=[])
-    client.request.side_effect = [{"result": [20]}, failure("submission reply lost")]
+    client.request.side_effect = [
+        {"result": [20]},
+        {"result": [{"ribbon-info": [0, 0, 36, 0, 0, 0]}]},
+        failure("submission reply lost"),
+    ]
     monkeypatch.setattr(printer, "Client", Mock(return_value=client))
     log = tmp_path / "run.jsonl"
 
@@ -122,6 +126,7 @@ def test_unconfirmed_submission_warns_without_retrying_or_uploading(
     )
     assert "Completed" not in output.out
     assert [call.args[0] for call in client.request.call_args_list] == [
+        "get-prop",
         "get-prop",
         "combo-job",
     ]

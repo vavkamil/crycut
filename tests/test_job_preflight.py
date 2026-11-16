@@ -47,14 +47,18 @@ def test_busy_or_unknown_printer_state_never_submits(state):
 )
 def test_invalid_assigned_id_never_starts_upload_or_monitoring(result, monkeypatch):
     client = Mock(key=b"0123456789ABCDEF")
-    client.request.side_effect = [{"result": [20]}, {"result": result}]
+    client.request.side_effect = [
+        {"result": [20]},
+        {"result": [{"ribbon-info": [0, 0, 36, 0, 0, 0]}]},
+        {"result": result},
+    ]
     sheet = PrintSheet.load(ROOT / "projects/wordmarks")
     emitted = Mock()
     monitor = Mock()
     monkeypatch.setattr(jobs, "monitor", monitor)
     with pytest.raises(ValueError, match="No valid job ID"):
         jobs.submit(client, sheet, emitted)
-    assert client.request.call_count == 2
+    assert client.request.call_count == 3
     client.send.assert_not_called()
     monitor.assert_not_called()
     emitted.assert_called_once_with("submitting", copies=1)
@@ -75,6 +79,7 @@ def test_upload_reuses_preflight_estimate_without_reading_configuration_again():
     client = Mock(key=b"0123456789ABCDEF")
     client.request.side_effect = [
         {"result": ["20"]},
+        {"result": [{"ribbon-info": [0, 0, 36, 0, 0, 0]}]},
         {"result": {"job-id": 42}},
     ]
     sheet = PrintSheet(b"image", b"cut", 1, "example")

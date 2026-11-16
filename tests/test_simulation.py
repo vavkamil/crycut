@@ -160,6 +160,32 @@ def test_cli_simulation_is_offline_and_cleans_up(
     assert list(tmp_path.iterdir()) == []
 
 
+@pytest.mark.parametrize("copies", [35, 36])
+def test_simulated_cartridge_warning_does_not_stop_requested_copies(copies):
+    sheet = PrintSheet.load(ROOT / "projects/wordmarks")
+    events = []
+    simulation.simulate(
+        sheet,
+        lambda event, **details: events.append((event, details)),
+        clock=FastClock(10),
+        copies=copies,
+        interval=1000,
+    )
+    warnings = [details for event, details in events if event == "cartridge_warning"]
+    assert warnings == ([{"prints_left": 35}] if copies == 36 else [])
+    if warnings:
+        names = [event for event, _ in events]
+        assert (
+            names.index("connected")
+            < names.index("cartridge_warning")
+            < names.index("submitting")
+        )
+    assert {
+        details["copy_number"] for event, details in events if event == "progress"
+    } == set(range(1, copies + 1))
+    assert events[-1] == ("job", {"job-id": 1, "job-state": 9})
+
+
 @pytest.mark.parametrize(
     "options",
     [

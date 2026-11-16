@@ -5,6 +5,7 @@ import time
 
 from .models import Emit, JsonObject
 from .sheets import PrintSheet
+from .status import ribbon_count
 from .transport import Client
 
 JOB_STATES = {
@@ -189,6 +190,14 @@ def submit(
     state = client.request("get-prop", ["printer-state"]).get("result")
     if state != ["20"] and state != [20]:
         raise ValueError(f"Printer is not idle: {state}")
+    try:
+        remaining = ribbon_count(client.request("get-prop", ["ribbon-info"]))
+    except (OSError, ValueError):
+        remaining = -1
+    if remaining < 0:
+        emit("cartridge_warning", prints_left=None)
+    elif remaining <= 3 or remaining < copies:
+        emit("cartridge_warning", prints_left=remaining)
     emit("submitting", copies=copies)
     response = client.request("combo-job", parameters)
     result = response.get("result")

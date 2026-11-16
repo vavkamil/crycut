@@ -141,21 +141,23 @@ class JobTests(unittest.TestCase):
         sock = FakeSocket(
             [
                 json_reply({"id": 1, "result": ["20"]}),
-                json_reply({"id": 2, "error": {"code": 5401}}),
+                json_reply({"id": 2, "result": [{"ribbon-info": [0, 0, 36, 0, 0, 0]}]}),
+                json_reply({"id": 3, "error": {"code": 5401}}),
             ]
         )
         client = Client(sock)
         client.key = FIXTURE_KEY
         with self.assertRaisesRegex(ValueError, "Printer rejected combo-job"):
             submit(client, self.sheet, lambda *a, **kw: None)
-        self.assertEqual(len(sock.sent), 2)
+        self.assertEqual(len(sock.sent), 3)
         self.assertTrue(all(p[3] == 1 for p in sock.sent))
 
     def test_submit_uses_assigned_id_and_monitors(self):
         sock = FakeSocket(
             [
                 json_reply({"id": 1, "result": ["20"]}),
-                json_reply({"id": 2, "result": {"job-id": 123}}),
+                json_reply({"id": 2, "result": [{"ribbon-info": [0, 0, 36, 0, 0, 0]}]}),
+                json_reply({"id": 3, "result": {"job-id": 123}}),
             ]
         )
         client = Client(sock)
@@ -167,8 +169,8 @@ class JobTests(unittest.TestCase):
             result = submit(client, self.sheet, lambda *a, **kw: None)
         self.assertEqual(result["job-state"], 9)
         self.assertEqual(watch.call_args.args[1], 123)
-        self.assertEqual(len(sock.sent), 715)
-        for packet in sock.sent[2:]:
+        self.assertEqual(len(sock.sent), 716)
+        for packet in sock.sent[3:]:
             self.assertEqual(
                 struct.unpack_from("<I", aes(FIXTURE_KEY, packet[20:-2], decrypt=True))[
                     0
@@ -199,6 +201,55 @@ class JobTests(unittest.TestCase):
         self.assertEqual(events[-1][0], "job")
         self.assertEqual(result["job-state"], 9)
         self.assertEqual(len(sock.sent), 3)
+
+    def test_cartridge_is_queried_once_before_submission_not_during_monitoring(self):
+        sock = FakeSocket(
+            [
+                json_reply({"id": 1, "result": ["20"]}),
+                json_reply(
+                    {"id": 2, "result": [{"ribbon-info": [0, 0, "2", 0, 0, 0]}]}
+                ),
+                json_reply({"id": 3, "result": {"job-id": 123}}),
+                json_reply({"id": 4, "result": [{"job-id": 123, "job-state": 3}]}),
+                json_reply({"id": 5, "result": ["40", "3030", ":0:0"]}),
+                json_reply({"id": 6, "result": [{"job-id": 123, "job-state": 9}]}),
+            ]
+        )
+        client = Client(sock)
+        client.key = FIXTURE_KEY
+        events = []
+        with patch("crycut.jobs.time.sleep"):
+            result = submit(
+                client, self.sheet, lambda event, **data: events.append((event, data))
+            )
+        self.assertEqual(result["job-state"], 9)
+        requests = [
+            json.loads(aes(FIXTURE_KEY, packet[20:-2], decrypt=True).rstrip(b"\0"))
+            for packet in sock.sent
+            if packet[3] == 1
+        ]
+        self.assertEqual([request["id"] for request in requests], [1, 2, 3, 4, 5, 6])
+        self.assertEqual(
+            [
+                (request["method"], request["params"])
+                for request in requests
+                if request["method"] == "get-prop"
+            ],
+            [
+                ("get-prop", ["printer-state"]),
+                ("get-prop", ["ribbon-info"]),
+                (
+                    "get-prop",
+                    ["printer-state", "printer-sub-state", "printer-state-alerts"],
+                ),
+            ],
+        )
+        self.assertEqual(requests[2]["method"], "combo-job")
+        self.assertEqual(
+            events[:2],
+            [("cartridge_warning", {"prints_left": 2}), ("submitting", {"copies": 1})],
+        )
+        self.assertEqual(sum(event == "cartridge_warning" for event, _ in events), 1)
 
     def test_finish_event_survives_missing_poll_reply(self):
         sock = FakeSocket(
