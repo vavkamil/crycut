@@ -71,12 +71,13 @@ def summary(status: JsonObject) -> Group:
 def display(status: JsonObject) -> str:
     """Return the status summary without terminal styling."""
     stream = StringIO()
-    _show_status(status, console(stream))
+    out = console(stream)
+    heading("Status", out=out)
+    _show_status(status, out)
     return "\n".join(line.rstrip() for line in stream.getvalue().splitlines()) + "\n"
 
 
 def _show_status(status: JsonObject, out: Console) -> None:
-    heading("Status", out=out)
     out.print(summary(status))
     out.print()
     command_hints([("Details", "uv run crycut status --json")], out=out)
@@ -126,9 +127,9 @@ def structured_status(status: JsonObject) -> JsonObject:
     }
 
 
-def reading_status() -> AbstractContextManager[None]:
+def reading_status(*, leading_blank: bool = True) -> AbstractContextManager[None]:
     """Show a temporary spinner while reading the printer."""
-    return busy("Reading printer status…")
+    return busy("Reading printer status…", leading_blank=leading_blank)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -151,7 +152,9 @@ def main(argv: list[str] | None = None) -> int:
         config = load_printer(PRINTER_CONFIG)
         address, name = config.address, config.name
         connecting = True
-        with reading_status():
+        if not args.json:
+            heading("Status")
+        with reading_status(leading_blank=args.json):
             channel = resolve_rfcomm_channel(address, args.channel, args.timeout)
             with socket.socket(
                 socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM
@@ -179,7 +182,6 @@ def main(argv: list[str] | None = None) -> int:
                 ("Connection", "Unavailable"),
             ]
             out = console(sys.stderr)
-            heading("Status", out=out)
             out.print(fields(rows))
             out.print()
             notice(
