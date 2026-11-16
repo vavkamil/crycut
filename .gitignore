@@ -13,3 +13,8 @@ dist/
 *.egg-info/
 logs/
 /config/printer.json
+
+# Keep personal projects local; explicitly allow bundled examples.
+/projects/*
+!/projects/tech-icons/
+!/projects/wordmarks/
