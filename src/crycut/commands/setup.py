@@ -152,6 +152,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         out.print()
         notice("Printer configured.", "success", out=out)
+        out.print()
         command_hints([("Check status", "uv run crycut status")], out=out)
         out.print()
         return 0
