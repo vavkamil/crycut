@@ -132,16 +132,9 @@ uv run ruff format --check .
 uv run ty check .
 ```
 
-Tests run offline using temporary projects, simulated printer connections, and
-protocol fixtures. They include byte-for-byte upload comparisons and
-export geometry checks.
-
-For focused changes, run the relevant test file, for example
-`uv run pytest tests/test_monitor_failures.py`.
-
-Run `uv run pytest --cov` for the same coverage report as CI, including branch
-coverage and missing lines. See [Contributing](docs/CONTRIBUTING.md#coverage)
-for an HTML report.
+Tests run offline without a printer. Run `uv run pytest --cov` for the same
+coverage report as CI. See [Contributing](docs/CONTRIBUTING.md#coverage) for more
+coverage options.
 
 ## Prerequisites
 
