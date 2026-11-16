@@ -29,8 +29,9 @@ uv run pytest --cov
 ```
 
 Coverage includes all modules in `src/crycut`, including modules that tests never
-import. The terminal report shows missing lines and branches. There is currently
-no minimum coverage threshold.
+import. The terminal report shows missing lines and branches. CI and local
+coverage runs require at least 98% combined line and branch coverage across the
+package. The minimum applies to the total, not individual modules.
 
 To also generate a browsable report:
 
